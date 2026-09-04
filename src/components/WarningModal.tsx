@@ -1,0 +1,5 @@
+import { AlertTriangle } from 'lucide-react';
+interface Props { onBack: () => void; onCameraCheck: () => void; }
+export function WarningModal({ onBack, onCameraCheck }: Props) {
+  return <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-8"><div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full"><div className="bg-orange-500 text-white py-5 px-6 rounded-t-lg"><div className="flex items-center gap-3"><AlertTriangle className="w-8 h-8" /><div><h2 className="text-2xl font-bold uppercase">Omstelling niet geregistreerd</h2></div></div></div><div className="p-8"><p className="text-lg text-gray-800 mb-8 leading-relaxed">De omstelling naar Product 2 is nog niet uitgevoerd. Wil je de werkplek eerst controleren?</p><div className="grid grid-cols-2 gap-4"><button onClick={onBack} className="bg-gray-500 hover:bg-gray-600 text-white text-lg py-4 px-6 rounded-lg transition-colors font-medium">Terug</button><button onClick={onCameraCheck} className="bg-blue-500 hover:bg-blue-600 text-white text-lg py-4 px-6 rounded-lg transition-colors font-medium">Controle uitvoeren</button></div></div></div></div>;
+}
