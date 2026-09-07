@@ -1128,6 +1128,65 @@ function CameraApp({
     checkMode,
   ]);
 
+
+  // Geïntegreerde LeafyNeedyPercent-productcontrole.
+  // De embedded AprilTag-app stuurt na de analyse een postMessage terug.
+  useEffect(() => {
+    const handleLeafyResult = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+
+      const data = event.data;
+
+      if (!data || data.type !== 'sirris-final-qc-result') return;
+
+      const product: ProductType =
+        data.product === 'product2' ? 'product2' : 'product1';
+
+      if (product !== activeProduct) return;
+
+      const checkStatus: 'ok' | 'error' =
+        data.status === 'ok' ? 'ok' : 'error';
+
+      const percentage =
+        typeof data.score === 'number'
+          ? Math.round(data.score * 10000) / 100
+          : 0;
+
+      const payload = {
+        product,
+        status: checkStatus,
+        percentage,
+        context: 'final-qc' as const,
+        timestamp: Date.now(),
+      };
+
+      try {
+        localStorage.setItem(
+          'camera_check_result',
+          JSON.stringify(payload)
+        );
+      } catch {
+        // localStorage fallback mag falen zonder de demo te blokkeren.
+      }
+
+      fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }).catch(() => {
+        // Zonder internet blijft de localStorage fallback bestaan.
+      });
+
+      setLastKnownContext('final-qc');
+      setAnalysisResult(checkStatus);
+    };
+
+    window.addEventListener('message', handleLeafyResult);
+
+    return () => {
+      window.removeEventListener('message', handleLeafyResult);
+    };
+  }, [activeProduct]);
+
   const stopCamera = () => {
     if (streamRef.current) {
       streamRef.current
@@ -1782,10 +1841,13 @@ function CameraApp({
   // handmatige knoppen op het operator-scherm blijven voor nu de manier
   // om verder te gaan na een eindcontrole.
   if (checkMode === 'product') {
-    return (
-      <div className="h-[100dvh] w-full bg-slate-50 overflow-y-auto">
+    const embeddedProductUrl =
+      `/LeafyNeedyPercent/?embed=1&product=${activeProduct}`;
 
-        <header className="bg-[#0B1929] px-5 py-5 flex items-center justify-between gap-4 sticky top-0 z-10">
+    return (
+      <div className="h-[100dvh] w-full bg-slate-50 flex flex-col overflow-hidden">
+
+        <header className="bg-[#0B1929] px-5 py-5 flex items-center justify-between gap-4 flex-shrink-0">
           <div className="flex items-center gap-4 min-w-0">
             <button
               onClick={() => {
@@ -1796,90 +1858,38 @@ function CameraApp({
             >
               ←
             </button>
+
             <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-amber-400 font-bold">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-blue-400 font-bold">
                 CAMERA · PRODUCTCONTROLE
               </p>
               <h1 className="text-xl md:text-2xl font-bold text-white truncate">
-                Eindcontrole product
+                Eindcontrole {activeProduct === 'product2' ? 'Product 2' : 'Product 1'}
               </h1>
             </div>
           </div>
+
+          <div className="px-3 py-2 rounded-full bg-emerald-500/15 text-emerald-300 text-[10px] md:text-xs font-bold flex items-center gap-2 flex-shrink-0">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            APRILTAG
+          </div>
         </header>
 
-        <main className="p-5 md:p-10 max-w-[1100px] mx-auto">
+        <div className="bg-blue-50 border-b border-blue-100 px-5 py-3 flex-shrink-0">
+          <p className="text-xs md:text-sm text-blue-800 font-medium max-w-[1100px] mx-auto">
+            De AprilTag-productcontrole is nu geïntegreerd. De foto wordt rechtgetrokken naar 810 × 650, vergeleken met de opgeslagen referentie en het OK/NOK-resultaat wordt automatisch naar de Operator gestuurd.
+          </p>
+        </div>
 
-          <div className="bg-amber-50 border-l-4 border-amber-500 rounded-lg p-5 mb-6">
-            <p className="text-sm text-amber-800 font-medium">
-              Deze functie is nog in ontwikkeling: de camera werkt, maar er gebeurt nog geen automatische analyse. Gebruik voorlopig de handmatige knoppen op het operator-scherm om verder te gaan.
-            </p>
-          </div>
-
-          <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden">
-            {!cameraActive && !photoUrl && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center mb-5">
-                  <svg className="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M3 9a2 2 0 012-2h2l1.5-2h7L17 7h2a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <circle cx="12" cy="13" r="4" strokeWidth={1.7} />
-                  </svg>
-                </div>
-                <p className="font-semibold text-white">Camera nog niet geopend</p>
-              </div>
-            )}
-
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className={`absolute inset-0 w-full h-full object-cover ${cameraActive ? 'block' : 'hidden'}`}
-            />
-
-            {photoUrl && (
-              <img src={photoUrl} alt="Product" className="absolute inset-0 w-full h-full object-cover" />
-            )}
-
-            {cameraActive && (
-              <div className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                LIVE
-              </div>
-            )}
-
-            <canvas ref={canvasRef} className="hidden" />
-          </div>
-
-          <div className="mt-6">
-            {!cameraActive && !photoUrl && (
-              <button
-                onClick={startCamera}
-                className="w-full bg-amber-500 hover:bg-amber-600 text-white text-lg py-4 px-6 rounded-lg transition-colors font-medium shadow-sm"
-              >
-                Camera openen
-              </button>
-            )}
-
-            {cameraActive && (
-              <button
-                onClick={takePhoto}
-                className="w-full bg-green-600 hover:bg-green-700 text-white text-lg py-4 px-6 rounded-lg transition-colors font-medium shadow-sm"
-              >
-                📷 Foto nemen
-              </button>
-            )}
-
-            {photoUrl && (
-              <button
-                onClick={resetTest}
-                className="w-full bg-amber-500 hover:bg-amber-600 text-white text-lg py-4 px-6 rounded-lg transition-colors font-medium shadow-sm"
-              >
-                Nieuwe foto
-              </button>
-            )}
-          </div>
-
-        </main>
+        <div className="flex-1 min-h-0 bg-white">
+          <iframe
+            key={`${activeProduct}-${embeddedProductUrl}`}
+            src={embeddedProductUrl}
+            title={`AprilTag eindcontrole ${activeProduct === 'product2' ? 'Product 2' : 'Product 1'}`}
+            allow="camera"
+            className="w-full h-full border-0 bg-white"
+          />
+        </div>
 
       </div>
     );
