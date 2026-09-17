@@ -8,6 +8,7 @@ import {
   CircleAlert,
   ClipboardCheck,
   Home,
+  Loader2,
   LogOut,
   Package,
   RefreshCw,
@@ -131,6 +132,19 @@ export interface SessionData {
     [key: string]: number;
   };
 }
+
+// NIEUW: registratie per stap (voorbereiding + montage) voor de SMED-
+// analyse. Eén rij per stap die de operator effectief doorloopt, met
+// start-/stoptijd en duur. Downloadbaar als CSV via SettingsScreen.
+export interface StepLogEntry {
+  phase: 'Voorbereiding' | 'Montage';
+  product: string;
+  step: string;
+  startTime: number;
+  stopTime: number;
+  durationMs: number;
+}
+
 
 export interface OperatorSettings {
   operatorName: string;
@@ -881,6 +895,14 @@ function CameraApp({
       null
     );
 
+  // NIEUW: aparte laadstatus voor de gefakete productcontrole-analyse
+  // (2 seconden "laden" na het nemen van de foto, los van de echte
+  // kleurherkenning die de malcontrole gebruikt).
+  const [
+    productAnalysing,
+    setProductAnalysing,
+  ] = useState(false);
+
   const [
     activeProduct,
     setActiveProduct,
@@ -1588,6 +1610,56 @@ function CameraApp({
     }
   };
 
+  // NIEUW: Productcontrole (eindcontrole) heeft nog geen echte
+  // automatische analyse (dat volgt later via computer vision). Deze
+  // functie simuleert het wel realistisch: de foto wordt genomen, er
+  // volgt 2 seconden een laadanimatie, en daarna wordt automatisch een
+  // geslaagd resultaat gepubliceerd — op dezelfde manier (localStorage +
+  // ntfy) als de echte analyse, zodat FinalQCScreen op de tablet dit
+  // gewoon als een normaal resultaat verwerkt.
+  const fakeAnalyseProduct = () => {
+    setProductAnalysing(true);
+
+    window.setTimeout(() => {
+      setProductAnalysing(false);
+      setAnalysisResult('ok');
+
+      try {
+        localStorage.setItem(
+          'camera_check_result',
+          JSON.stringify({
+            product: activeProduct,
+            status: 'ok',
+            percentage: 0,
+            context: 'final-qc',
+            timestamp: Date.now(),
+          })
+        );
+      } catch {
+        // Demo blijft werken als localStorage niet beschikbaar is.
+      }
+
+      fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          product: activeProduct,
+          status: 'ok',
+          percentage: 0,
+          context: 'final-qc',
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {
+        // Geen internet of ntfy.sh niet bereikbaar — de knoppen op de
+        // tablet blijven dan de enige manier om verder te gaan.
+      });
+    }, 2000);
+  };
+
+  const takePhotoForProduct = () => {
+    takePhoto();
+    fakeAnalyseProduct();
+  };
+
   const retakePhoto =
     async () => {
       setPhotoUrl(null);
@@ -1841,13 +1913,13 @@ function CameraApp({
   // handmatige knoppen op het operator-scherm blijven voor nu de manier
   // om verder te gaan na een eindcontrole.
   if (checkMode === 'product') {
-    const embeddedProductUrl =
-      `/LeafyNeedyPercent/?embed=1&product=${activeProduct}`;
+    const productName =
+      activeProduct === 'product2' ? 'Product 2' : 'Product 1';
 
     return (
-      <div className="h-[100dvh] w-full bg-slate-50 flex flex-col overflow-hidden">
+      <div className="h-[100dvh] w-full bg-slate-50 overflow-y-auto">
 
-        <header className="bg-[#0B1929] px-5 py-5 flex items-center justify-between gap-4 flex-shrink-0">
+        <header className="bg-[#0B1929] px-5 py-5 flex items-center justify-between gap-4 sticky top-0 z-10">
           <div className="flex items-center gap-4 min-w-0">
             <button
               onClick={() => {
@@ -1864,32 +1936,124 @@ function CameraApp({
                 CAMERA · PRODUCTCONTROLE
               </p>
               <h1 className="text-xl md:text-2xl font-bold text-white truncate">
-                Eindcontrole {activeProduct === 'product2' ? 'Product 2' : 'Product 1'}
+                Eindcontrole {productName}
               </h1>
             </div>
           </div>
 
-          <div className="px-3 py-2 rounded-full bg-emerald-500/15 text-emerald-300 text-[10px] md:text-xs font-bold flex items-center gap-2 flex-shrink-0">
-            <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            APRILTAG
+          <div
+            className={`px-3 md:px-4 py-2 rounded-full text-[10px] md:text-xs font-bold flex-shrink-0 ${
+              cameraActive
+                ? 'bg-emerald-500/20 text-emerald-300'
+                : 'bg-slate-700 text-slate-300'
+            }`}
+          >
+            {cameraActive ? '● CAMERA ACTIEF' : 'CAMERA STAND-BY'}
           </div>
         </header>
 
-        <div className="bg-blue-50 border-b border-blue-100 px-5 py-3 flex-shrink-0">
-          <p className="text-xs md:text-sm text-blue-800 font-medium max-w-[1100px] mx-auto">
-            De AprilTag-productcontrole is nu geïntegreerd. De foto wordt rechtgetrokken naar 810 × 650, vergeleken met de opgeslagen referentie en het OK/NOK-resultaat wordt automatisch naar de Operator gestuurd.
-          </p>
-        </div>
+        <main className="p-5 md:p-10 max-w-[1100px] mx-auto">
+          <div className="relative w-full aspect-[4/3] bg-black rounded-2xl overflow-hidden">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`absolute inset-0 w-full h-full object-cover ${
+                cameraActive ? 'block' : 'hidden'
+              }`}
+            />
 
-        <div className="flex-1 min-h-0 bg-white">
-          <iframe
-            key={`${activeProduct}-${embeddedProductUrl}`}
-            src={embeddedProductUrl}
-            title={`AprilTag eindcontrole ${activeProduct === 'product2' ? 'Product 2' : 'Product 1'}`}
-            allow="camera"
-            className="w-full h-full border-0 bg-white"
-          />
-        </div>
+            {photoUrl && (
+              <img
+                src={photoUrl}
+                alt="Controlefoto"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            )}
+
+            {(cameraActive || photoUrl) && (
+              <div className="absolute left-[15%] top-[15%] w-[70%] h-[70%] border-4 border-white rounded-xl pointer-events-none shadow-[0_0_0_9999px_rgba(0,0,0,0.15)]">
+                <div className="absolute -top-9 left-0 bg-white text-slate-900 text-xs font-bold px-3 py-1 rounded-md">
+                  CONTROLEZONE
+                </div>
+              </div>
+            )}
+
+            {cameraActive && (
+              <div className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                LIVE
+              </div>
+            )}
+
+            {productAnalysing && (
+              <div className="absolute inset-0 bg-slate-950/75 flex flex-col items-center justify-center text-white text-center px-6">
+                <Loader2 className="w-14 h-14 animate-spin mb-4" />
+                <p className="text-xl font-bold">Product wordt gecontroleerd…</p>
+              </div>
+            )}
+
+            {!productAnalysing && analysisResult === 'ok' && (
+              <div className="absolute inset-0 bg-emerald-950/75 flex flex-col items-center justify-center text-white text-center px-6">
+                <div className="w-20 md:w-24 h-20 md:h-24 rounded-full bg-emerald-500 flex items-center justify-center text-4xl md:text-5xl font-bold mb-5">
+                  ✓
+                </div>
+                <p className="text-3xl md:text-4xl font-bold">GOEDGEKEURD</p>
+                <p className="mt-3 text-lg md:text-xl font-semibold text-emerald-100">
+                  {productName} kan worden vrijgegeven
+                </p>
+              </div>
+            )}
+
+            <canvas ref={canvasRef} className="hidden" />
+          </div>
+
+          {error && (
+            <div className="mt-5 bg-red-50 border border-red-200 rounded-xl p-4">
+              <p className="font-semibold text-red-700">Camera probleem</p>
+              <p className="text-sm text-red-600 mt-1">{error}</p>
+            </div>
+          )}
+
+          <div className="mt-6">
+            {!cameraActive && !photoUrl && (
+              <button
+                onClick={startCamera}
+                className="w-full h-14 rounded-xl bg-[#3B82F6] text-white font-bold text-lg"
+              >
+                Camera openen
+              </button>
+            )}
+
+            {cameraActive && (
+              <button
+                onClick={takePhotoForProduct}
+                className="w-full h-14 rounded-xl bg-[#3B82F6] text-white font-bold text-lg"
+              >
+                📷 Foto nemen
+              </button>
+            )}
+
+            {photoUrl && !productAnalysing && analysisResult === 'idle' && (
+              <button
+                onClick={retakePhoto}
+                className="w-full h-14 rounded-xl border-2 border-slate-300 bg-white text-slate-700 font-bold"
+              >
+                Foto opnieuw
+              </button>
+            )}
+
+            {!productAnalysing && analysisResult === 'ok' && (
+              <button
+                onClick={resetTest}
+                className="w-full h-14 rounded-xl bg-[#3B82F6] text-white font-bold text-lg"
+              >
+                Nieuwe controle
+              </button>
+            )}
+          </div>
+        </main>
 
       </div>
     );
@@ -2505,6 +2669,40 @@ function OperatorApp({
         0
     );
 
+  // NIEUW: log van elke doorlopen stap (voorbereiding + montage), voor de
+  // SMED-analyse. Wordt per stap aangevuld (zie het gebruik van logStep
+  // verderop, bij de changeover-stappen en in ProductionStepsScreen) en
+  // blijft bewaard over de hele sessie, ook na een productwissel.
+  const [
+    stepLog,
+    setStepLog,
+  ] =
+    useState<StepLogEntry[]>(
+      savedOperatorState?.stepLog ?? []
+    );
+
+  const logStep = (
+    phase: StepLogEntry['phase'],
+    product: string,
+    step: string,
+    startTime: number,
+    stopTime: number
+  ) => {
+    if (!startTime || stopTime <= startTime) return;
+
+    setStepLog((prev) => [
+      ...prev,
+      {
+        phase,
+        product,
+        step,
+        startTime,
+        stopTime,
+        durationMs: stopTime - startTime,
+      },
+    ]);
+  };
+
   // NIEUW (punt 2): schrijf de belangrijkste sessiestatus telkens terug
   // naar localStorage zodra ze wijzigt. "elapsedTime" en "showWarning"
   // bewust NIET bewaard — die horen bij het huidige moment, niet bij een
@@ -2527,6 +2725,7 @@ function OperatorApp({
           cameraCheckOrigin,
           orderQuantity,
           producedCount,
+          stepLog,
         })
       );
     } catch {
@@ -2546,6 +2745,7 @@ function OperatorApp({
     cameraCheckOrigin,
     orderQuantity,
     producedCount,
+    stepLog,
   ]);
 
   useEffect(() => {
@@ -3322,6 +3522,59 @@ function OperatorApp({
       ? 'Product 2'
       : 'Product 1';
 
+  // Onthoudt sinds wanneer het huidige changeover-scherm actief is, zodat
+  // we bij de volgende stap de duur van het VORIGE scherm kunnen loggen.
+  const changeoverStepEnteredAtRef =
+    useRef<number>(Date.now());
+
+  const CHANGEOVER_STEP_LABELS: Partial<
+    Record<FlowStep, string>
+  > = {
+    'changeover-step1': 'Werkpost vrijmaken',
+    'changeover-step2': 'Mal plaatsen',
+    'changeover-step3': 'Onderdelen controleren',
+    'changeover-step4': 'Gereedschap controleren',
+    'changeover-step5': 'Omstelling afronden',
+  };
+
+  const previousStepRef =
+    useRef<FlowStep>(currentStep);
+
+  useEffect(() => {
+    const previous = previousStepRef.current;
+    const label = CHANGEOVER_STEP_LABELS[previous];
+
+    if (label && previous !== currentStep) {
+      logStep(
+        'Voorbereiding',
+        toProduct,
+        label,
+        changeoverStepEnteredAtRef.current,
+        Date.now()
+      );
+    }
+
+    previousStepRef.current = currentStep;
+    changeoverStepEnteredAtRef.current = Date.now();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
+
+  // NIEUW: elke afgeronde montagestap (uit ProductionStepsScreen) hier
+  // gewoon toevoegen aan hetzelfde stepLog.
+  const handleMontageStepLog = (
+    step: string,
+    startTime: number,
+    stopTime: number
+  ) => {
+    logStep(
+      'Montage',
+      toProduct,
+      step,
+      startTime,
+      stopTime
+    );
+  };
+
   // Afgeleide waarde: is de malcontrole al goedgekeurd voor het product
   // dat nu geproduceerd wordt? Blijft geldig tot er echt gewisseld wordt.
   const cameraCheckPassed =
@@ -3674,6 +3927,9 @@ function OperatorApp({
           onSettings={
             handleOpenSettings
           }
+          onStepLog={
+            handleMontageStepLog
+          }
         />
 
       )}
@@ -3842,6 +4098,9 @@ function OperatorApp({
               }
               plannedChangeovers={
                 plannedChangeovers
+              }
+              stepLog={
+                stepLog
               }
             />
           </div>
@@ -4613,12 +4872,6 @@ const BIN_DATABASE: BinDefinition[] = [
     material: 'T-moeren M5',
     pickupLocation: 'Supermarkt A5',
     stationLocation: 'Poka-yoke kast · B5',
-  },
-  {
-    qrCode: 'BIN-NUTENSTEIN',
-    material: 'Nutensteinen',
-    pickupLocation: 'Supermarkt A6',
-    stationLocation: 'Poka-yoke kast · B6',
   },
   {
     qrCode: 'BIN-NUTENSTEIN-LONG',
