@@ -1,522 +1,527 @@
 # Digital Workstation
 
-Browser-based production support system for product changeovers, assembly guidance and quality control.
+Browsergebaseerd productieondersteunend systeem voor productwissels, montagebegeleiding en kwaliteitscontrole.
 
-**Project status:** Functional prototype / demonstrator  
-**Application:** Digital support for SMED-based changeover and assembly  
+**Projectstatus:** Functioneel prototype / demonstrator  
+**Toepassing:** Digitale ondersteuning voor SMED-gebaseerde omstellingen en assemblage  
 **Live prototype:** https://florinedespiegeleer.github.io/DigitalWorkstation/
 
 ---
 
-## 1. Overview
+## 1. Overzicht
 
-The **Digital Workstation** supports operators and supporting production roles during product changeovers and assembly operations.
+Het **Digital Workstation** ondersteunt operatoren en ondersteunende productierollen tijdens productwissels en assemblagehandelingen.
 
-The system was developed to reduce searching, waiting, setup variation and assembly errors by combining:
+Het systeem werd ontwikkeld om zoeken, wachten, variatie tijdens omstellingen en montagefouten te verminderen door middel van:
 
-- role-based digital workflows;
-- external preparation by a Waterspider;
-- guided changeover instructions;
-- product-specific assembly instructions;
-- fixture verification;
-- final product quality control;
-- communication between multiple devices;
-- standardized work and SMED principles.
+- rolgebaseerde digitale workflows;
+- externe voorbereiding door een Waterspider;
+- begeleide omstelinstructies;
+- productspecifieke montage-instructies;
+- controle van de mal;
+- eindcontrole van het afgewerkte product;
+- communicatie tussen verschillende toestellen;
+- gestandaardiseerd werk en SMED-principes.
 
-The current prototype supports **Product 1** and **Product 2**.
+Het huidige prototype ondersteunt **Product 1** en **Product 2**.
 
-> **Important:** The Digital Workstation is a production-support prototype. It does not replace mechanical safety systems, torque verification or qualified inspection of safety-critical assemblies.
+> **Belangrijk:** Het Digital Workstation is een productieondersteunend prototype. Het vervangt geen mechanische veiligheidssystemen, koppelcontrole of gekwalificeerde inspectie van veiligheidskritische assemblages.
 
 ---
 
-## 2. System at a glance
+## 2. Systeem in één oogopslag
 
-The system consists of four main interfaces.
+Het systeem bestaat uit vier hoofdinterfaces.
 
-| Interface | Purpose |
+| Interface | Doel |
 |---|---|
-| **Manager** | Starts a product changeover and follows its progress. |
-| **Waterspider** | Prepares materials, tools, documentation and the correct fixture before the internal changeover starts. |
-| **Operator** | Executes the changeover and assembly using guided digital instructions. |
-| **Camera / Quality Control** | Performs fixture verification and final product inspection. |
+| **Manager** | Start een productwissel en volgt de voortgang. |
+| **Waterspider** | Bereidt materialen, gereedschappen, documentatie en de juiste mal voor vóór de interne omstelling start. |
+| **Operator** | Voert de omstelling en montage uit aan de hand van digitale werkinstructies. |
+| **Camera / Quality Control** | Voert de controle van de mal en de eindcontrole van het product uit. |
 
-### Typical workflow
+### Typische workflow
 
 ```text
 Manager
   |
   v
-Start product changeover
+Start productwissel
   |
   v
 Waterspider
-Prepare materials, tools, fixture and documentation
+Bereid materialen, gereedschappen, mal en documentatie voor
   |
   v
 Operator
-Start internal changeover
+Start interne omstelling
   |
   v
 Camera / QC
-Fixture verification
+Controle van de mal
   |
-  +---- NOK --> Correct setup --> Re-check
+  +---- NOK --> Corrigeer opstelling --> Opnieuw controleren
   |
   v
 Operator
-Start production and follow assembly instructions
+Start productie en volg montage-instructies
   |
   v
 Camera / QC
-Final product inspection
+Eindcontrole product
   |
-  +---- NOK --> Correct product --> Re-check
+  +---- NOK --> Corrigeer product --> Opnieuw controleren
   |
   v
-Product released
+Product vrijgegeven
 ```
 
 ---
 
-## 3. Getting started
+## 3. Aan de slag
 
-### Prototype requirements
+### Vereisten voor het prototype
 
-Recommended hardware:
+Aanbevolen hardware:
 
-- PC or tablet for the Manager;
-- tablet or mobile device for the Waterspider;
-- tablet in landscape orientation for the Operator;
-- smartphone or camera-enabled device for Quality Control;
-- network / internet connection;
-- modern browser with JavaScript enabled.
+- pc of tablet voor de Manager;
+- tablet of mobiel toestel voor de Waterspider;
+- tablet in liggende stand voor de Operator;
+- smartphone of toestel met camera voor Quality Control;
+- netwerk- / internetverbinding;
+- moderne browser met JavaScript ingeschakeld.
 
-### Initial setup
+### Eerste ingebruikname
 
-1. Open the Digital Workstation on the required devices.
-2. Assign the correct interface to each role.
-3. Open the Camera / QC interface on the camera device.
-4. Allow camera access when requested by the browser.
-5. Verify that all devices have network access.
-6. Verify the active product configuration.
-7. Confirm that the correct product reference data are available.
-8. Perform one communication test between the interfaces.
-9. Perform one fixture QC test.
-10. Perform one final QC test before using the system in a demonstration or validation run.
+1. Open het Digital Workstation op de vereiste toestellen.
+2. Ken de juiste interface toe aan elke rol.
+3. Open de Camera / QC-interface op het cameratoestel.
+4. Geef cameratoegang wanneer de browser daarom vraagt.
+5. Controleer of alle toestellen netwerktoegang hebben.
+6. Controleer de actieve productconfiguratie.
+7. Controleer of de juiste productreferenties beschikbaar zijn.
+8. Voer één communicatietest tussen de interfaces uit.
+9. Voer één test van de malcontrole uit.
+10. Voer één eindcontrole uit vóór het systeem wordt gebruikt voor een demonstratie of validatietest.
 
 ---
 
-## 4. Roles and responsibilities
+## 4. Rollen en verantwoordelijkheden
 
 ### Manager
 
-The Manager initiates a change from the current product to the required next product.
+De Manager start de wissel van het huidige product naar het volgende gewenste product.
 
-Main functions:
+Belangrijkste functies:
 
-- select the next product;
-- start the changeover;
-- follow preparation and changeover status;
-- monitor workflow progress.
+- het volgende product selecteren;
+- de productwissel starten;
+- de status van voorbereiding en omstelling opvolgen;
+- de voortgang van de workflow monitoren.
 
 ### Waterspider
 
-The Waterspider performs **external setup activities** before the Operator starts the internal changeover.
+De Waterspider voert de **externe omstelactiviteiten** uit vóór de Operator de interne omstelling start.
 
-Typical tasks:
+Typische taken:
 
-- prepare required components;
-- replenish component bins;
-- prepare aluminium profiles;
-- prepare the correct tools;
-- prepare the correct fixture;
-- prepare product documentation;
-- confirm that the workstation is ready.
+- benodigde componenten voorbereiden;
+- onderdelenbakken aanvullen;
+- aluminiumprofielen voorbereiden;
+- het juiste gereedschap klaarleggen;
+- de juiste mal voorbereiden;
+- productdocumentatie klaarleggen;
+- bevestigen dat de werkpost klaar is.
 
-The objective is to ensure that the Operator does not need to search for materials or tools during the internal changeover.
+Het doel is ervoor te zorgen dat de Operator tijdens de interne omstelling geen materiaal of gereedschap meer moet zoeken.
 
 ### Operator
 
-The Operator interface guides the production employee through:
+De Operator-interface begeleidt de productiemedewerker door:
 
-1. completion of the current production;
-2. changeover start;
-3. removal of the previous setup;
-4. installation of the new fixture;
-5. fixture quality control;
-6. component and tool verification;
-7. production start;
-8. step-by-step assembly;
-9. final product quality control;
-10. product completion.
+1. het afronden van de huidige productie;
+2. het starten van de omstelling;
+3. het verwijderen van de vorige opstelling;
+4. het plaatsen van de nieuwe mal;
+5. de kwaliteitscontrole van de mal;
+6. de controle van componenten en gereedschappen;
+7. het starten van de productie;
+8. stap-voor-stap montage;
+9. de eindcontrole van het product;
+10. het afronden van het product.
 
 ### Administrator
 
-Administrative functions are intended for system setup and maintenance.
+Administratieve functies zijn bedoeld voor configuratie en onderhoud van het systeem.
 
-Typical administrative functions include:
+Typische administratieve functies:
 
-- product-specific reference configuration;
-- quality-control configuration;
-- replacing reference images;
-- maintaining product-specific data;
-- managing prototype settings.
+- productspecifieke referenties instellen;
+- kwaliteitscontrole configureren;
+- referentiebeelden vervangen;
+- productspecifieke gegevens onderhouden;
+- prototype-instellingen beheren.
 
 ---
 
-## 5. Product configuration
+## 5. Productconfiguratie
 
-The current prototype supports two product variants.
+Het huidige prototype ondersteunt twee productvarianten.
 
-| Configuration item | Product 1 | Product 2 |
+| Configuratie-item | Product 1 | Product 2 |
 |---|---|---|
-| Product-specific fixture | Fixture P1 | Fixture P2 |
-| Work instructions | P1 instructions | P2 instructions |
-| Technical documentation | P1 documentation | P2 documentation |
-| Final QC reference | P1 reference | P2 reference |
-| Component checklist | Product-specific | Product-specific |
+| Productspecifieke mal | Mal P1 | Mal P2 |
+| Werkinstructies | Instructies P1 | Instructies P2 |
+| Technische documentatie | Documentatie P1 | Documentatie P2 |
+| Referentie eindcontrole | Referentie P1 | Referentie P2 |
+| Onderdelenchecklist | Productspecifiek | Productspecifiek |
 
-Each product must therefore have the correct fixture, instructions, technical drawing, component list and QC reference.
+Voor elk product moeten dus de juiste mal, instructies, technische tekening, onderdelenlijst en QC-referentie beschikbaar zijn.
 
 ---
 
-## 6. Production workflow
+## 6. Productieworkflow
 
-### Phase 1 — Product change requested
+### Fase 1 — Productwissel aangevraagd
 
-The Manager selects the required next product.
+De Manager selecteert het gewenste volgende product.
 
-Example:
+Voorbeeld:
 
 ```text
 Product 1 -> Product 2
 ```
 
-The required preparation activities are then initiated.
+Daarna worden de vereiste voorbereidende activiteiten gestart.
 
-### Phase 2 — External preparation
+### Fase 2 — Externe voorbereiding
 
-The Waterspider prepares the workstation while the previous product may still be in production.
+De Waterspider bereidt de werkpost voor terwijl het vorige product eventueel nog in productie is.
 
-This includes, where applicable:
+Dit omvat, indien van toepassing:
 
-- component kits;
-- aluminium profiles;
-- fasteners;
-- tools;
-- fixture;
-- work instructions;
-- technical drawings;
+- onderdelenkits;
+- aluminiumprofielen;
+- bevestigingsmaterialen;
+- gereedschappen;
+- mal;
+- werkinstructies;
+- technische tekeningen;
 - labels.
 
-Once preparation is complete, the workstation is marked as ready.
+Wanneer de voorbereiding volledig is, wordt de werkpost als klaar gemarkeerd.
 
-### Phase 3 — Internal changeover
+### Fase 3 — Interne omstelling
 
-After the final product of the current series is completed, the Operator starts the internal changeover.
+Nadat het laatste product van de huidige serie is afgewerkt, start de Operator de interne omstelling.
 
-Typical actions:
+Typische handelingen:
 
-- remove the previous setup;
-- install the new fixture;
-- verify the fixture;
-- confirm prepared components;
-- confirm prepared tools.
+- de vorige opstelling verwijderen;
+- de nieuwe mal plaatsen;
+- de mal controleren;
+- voorbereide componenten bevestigen;
+- voorbereide gereedschappen controleren.
 
-### Phase 4 — Production
+### Fase 4 — Productie
 
-After successful fixture verification, the Operator can start production.
+Na een succesvolle malcontrole kan de Operator de productie starten.
 
-The Operator then follows the product-specific digital assembly instructions.
+De Operator volgt vervolgens de productspecifieke digitale montage-instructies.
 
-### Phase 5 — Final quality control
+### Fase 5 — Eindcontrole
 
-After assembly, the product is checked before release.
+Na de assemblage wordt het product gecontroleerd vóór vrijgave.
 
-A mandatory **NOK** result must be corrected before the workflow continues.
-
----
-
-## 7. Quality control
-
-The system uses two distinct quality-control moments.
-
-### 7.1 Fixture QC
-
-**Purpose:** Verify that the correct fixture/setup is installed before production starts.
-
-**Input:** Camera image of the workstation fixture.
-
-**Output:**
-
-- `OK` — workflow may continue;
-- `NOK` — setup must be corrected and checked again.
-
-### 7.2 Final Product QC
-
-**Purpose:** Support verification of the finished product after assembly.
-
-Depending on the active prototype configuration, the system can evaluate visible product characteristics such as:
-
-- expected product geometry;
-- component presence;
-- wheel positions;
-- product-specific visual reference;
-- general assembly configuration.
-
-**Output:**
-
-- `OK` — product may proceed to release;
-- `NOK` — product must be corrected and checked again.
-
-### QC limitations
-
-The camera does **not** verify:
-
-- tightening torque;
-- hidden fastener engagement;
-- internal material defects;
-- structural strength;
-- hidden damage;
-- mechanical safety compliance.
-
-These items require separate controls where relevant.
+Een verplichte **NOK**-melding moet eerst worden gecorrigeerd voordat de workflow verdergaat.
 
 ---
 
-## 8. System architecture
+## 7. Kwaliteitscontrole
 
-The prototype uses a lightweight browser-based architecture.
+Het systeem gebruikt twee afzonderlijke kwaliteitscontrolemomenten.
 
-Main mechanisms include:
+### 7.1 Malcontrole
 
-- **GitHub Pages** for prototype hosting;
-- **browser localStorage** for selected local state and stored reference data;
-- **ntfy** for event/status communication between interfaces;
-- an **embedded QC interface** for final inspection;
-- browser **postMessage** communication for QC result transfer.
+**Doel:** Controleren of de juiste mal / opstelling is geplaatst vóór de productie start.
 
-Conceptually:
+**Input:** Camerabeeld van de mal op de werkpost.
+
+**Output:**
+
+- `OK` — de workflow mag verdergaan;
+- `NOK` — de opstelling moet worden gecorrigeerd en opnieuw gecontroleerd.
+
+### 7.2 Eindcontrole product
+
+**Doel:** De controle van het afgewerkte product ondersteunen na de montage.
+
+Afhankelijk van de actieve prototypeconfiguratie kan het systeem zichtbare productkenmerken evalueren, zoals:
+
+- verwachte productgeometrie;
+- aanwezigheid van componenten;
+- positie van de wielen;
+- productspecifieke visuele referentie;
+- algemene montageconfiguratie.
+
+**Output:**
+
+- `OK` — het product kan worden vrijgegeven;
+- `NOK` — het product moet worden gecorrigeerd en opnieuw gecontroleerd.
+
+### Beperkingen van de QC
+
+De camera controleert **niet**:
+
+- het aandraaimoment van bouten;
+- verborgen aangrijping van bevestigingen;
+- interne materiaalfouten;
+- structurele sterkte;
+- verborgen schade;
+- mechanische veiligheidsconformiteit.
+
+Waar nodig moeten hiervoor afzonderlijke controles worden voorzien.
+
+---
+
+## 8. Systeemarchitectuur
+
+Het prototype gebruikt een lichte browsergebaseerde architectuur.
+
+Belangrijkste mechanismen:
+
+- **GitHub Pages** voor hosting van het prototype;
+- **browser localStorage** voor bepaalde lokale statusinformatie en referentiegegevens;
+- **ntfy** voor event- en statuscommunicatie tussen interfaces;
+- een **ingebedde QC-interface** voor de eindcontrole;
+- browser **postMessage**-communicatie voor het doorgeven van QC-resultaten.
+
+Conceptueel:
 
 ```text
 Manager
    |
-   | product change request
+   | aanvraag productwissel
    v
 Digital Workstation
    |
-   +---- preparation task ----> Waterspider
+   +---- voorbereidingstaak ----> Waterspider
    |
-   +---- changeover task -----> Operator
+   +---- omsteltaak -----------> Operator
    |
-   +---- QC request ----------> Camera / QC
-                                  |
-                                  | OK / NOK result
-                                  v
-                         Digital Workstation
+   +---- QC-aanvraag ----------> Camera / QC
+                                   |
+                                   | OK / NOK-resultaat
+                                   v
+                          Digital Workstation
 ```
 
-### Local prototype data
+### Lokale prototypegegevens
 
-> **Important:** Some prototype data are stored locally in the browser. Clearing site data, changing browser or changing device may remove local references or workflow state.
-
----
-
-## 9. Recovery and reset
-
-If the prototype enters an inconsistent state:
-
-1. stop the current demonstration or test;
-2. reload the affected interface;
-3. verify the selected product;
-4. verify the current workflow state;
-5. reopen the Camera / QC interface if required;
-6. repeat the failed step;
-7. restart the test sequence if the state cannot be recovered reliably.
-
-If browser storage is cleared, product reference data may need to be configured again.
+> **Belangrijk:** Sommige prototypegegevens worden lokaal in de browser opgeslagen. Het wissen van sitegegevens, het gebruiken van een andere browser of het wisselen van toestel kan lokale referenties of workflowstatus verwijderen.
 
 ---
 
-## 10. Troubleshooting
+## 9. Herstel en reset
 
-| Issue | Check | Action |
+Wanneer het prototype in een inconsistente toestand terechtkomt:
+
+1. stop de huidige demonstratie of test;
+2. herlaad de betrokken interface;
+3. controleer het geselecteerde product;
+4. controleer de huidige workflowstatus;
+5. open indien nodig de Camera / QC-interface opnieuw;
+6. herhaal de mislukte stap;
+7. start de testreeks opnieuw wanneer de toestand niet betrouwbaar kan worden hersteld.
+
+Wanneer browseropslag wordt gewist, kan het nodig zijn om productreferenties opnieuw in te stellen.
+
+---
+
+## 10. Probleemoplossing
+
+| Probleem | Controle | Actie |
 |---|---|---|
-| Application does not load | Network / browser | Verify connection and reload the page. |
-| Wrong product displayed | Product selection | Stop and verify the selected product/changeover. |
-| Camera unavailable | Browser permissions | Enable camera access and reload the QC interface. |
-| Camera image is black | Camera in use / permission issue | Close other camera apps and verify permissions. |
-| Fixture QC returns NOK | Fixture or position incorrect | Reposition the fixture and repeat inspection. |
-| Final QC returns NOK | Product differs from requirements | Inspect the product, correct the issue and re-check. |
-| QC result is not returned | Communication interruption | Verify network, reload QC interface and repeat inspection. |
-| Wrong instructions are shown | Incorrect workflow/product state | Stop assembly and verify the active product. |
-| Material is missing | Preparation incomplete | Waterspider replenishes the required material. |
-| Tool is missing | Preparation incomplete | Prepare the correct tool before continuing. |
+| Applicatie laadt niet | Netwerk / browser | Controleer de verbinding en herlaad de pagina. |
+| Verkeerd product wordt weergegeven | Productselectie | Stop en controleer het geselecteerde product / de actieve omstelling. |
+| Camera niet beschikbaar | Browsermachtigingen | Sta cameratoegang toe en herlaad de QC-interface. |
+| Camerabeeld blijft zwart | Camera in gebruik / machtigingen | Sluit andere camera-apps en controleer de browsermachtigingen. |
+| Malcontrole geeft NOK | Verkeerde mal of positie | Corrigeer de mal en voer de controle opnieuw uit. |
+| Eindcontrole geeft NOK | Product wijkt af van de vereisten | Controleer het product, corrigeer de fout en controleer opnieuw. |
+| QC-resultaat wordt niet teruggestuurd | Communicatieprobleem | Controleer netwerk, herlaad de QC-interface en herhaal de controle. |
+| Verkeerde instructies worden getoond | Verkeerde workflow- of productstatus | Stop de montage en controleer het actieve product. |
+| Materiaal ontbreekt | Voorbereiding onvolledig | Waterspider vult het ontbrekende materiaal aan. |
+| Gereedschap ontbreekt | Voorbereiding onvolledig | Bereid het juiste gereedschap voor vóór de workflow verdergaat. |
 
 ---
 
-## 11. Safety and limitations
+## 11. Veiligheid en beperkingen
 
-The Digital Workstation is intended as a **production-support system**.
+Het Digital Workstation is bedoeld als **productieondersteunend systeem**.
 
-It must not be used as the sole safety mechanism for machinery or assembly equipment.
+Het mag niet worden gebruikt als enige veiligheidsvoorziening voor machines of assemblageapparatuur.
 
-The system does not replace:
+Het systeem vervangt geen:
 
-- emergency-stop systems;
-- machine guarding;
-- mechanical interlocks;
-- torque-controlled tooling where required;
-- approved technical specifications;
-- legally required machine-safety functions.
+- noodstopsystemen;
+- machineafscherming;
+- mechanische vergrendelingen;
+- koppelgestuurd gereedschap waar vereist;
+- goedgekeurde technische specificaties;
+- wettelijk vereiste machineveiligheidsfuncties.
 
-If a digital instruction conflicts with an approved technical drawing or controlled manufacturing specification, production should be stopped and the discrepancy investigated.
+Wanneer een digitale instructie strijdig is met een goedgekeurde technische tekening of gecontroleerde productiespecificatie, moet de productie worden gestopt en moet de afwijking worden onderzocht.
 
-### Vision-related limitations
+### Beperkingen van vision
 
-Camera performance can be influenced by:
+De prestaties van de cameracontrole kunnen worden beïnvloed door:
 
-- lighting;
-- reflections from aluminium;
-- camera angle;
-- camera distance;
-- component orientation;
-- obstruction of reference markers.
+- verlichting;
+- reflecties op aluminium;
+- camerahoek;
+- camera-afstand;
+- oriëntatie van componenten;
+- afdekking van referentiemarkers.
 
-A controlled camera position and stable lighting are recommended for reliable use.
-
----
-
-## 12. Maintenance
-
-Regularly verify that:
-
-- digital work instructions are current;
-- technical drawings use the latest revision;
-- fixture references are correct;
-- camera markers are clean and undamaged;
-- the camera lens is clean;
-- camera mounting has not moved;
-- component definitions match the physical workstation;
-- labels and storage locations correspond with the digital workflow;
-- obsolete product information has been removed.
-
-After significant modifications to a product or fixture, the digital reference data should also be reviewed.
+Voor betrouwbaar gebruik worden een vaste camerapositie en stabiele verlichting aanbevolen.
 
 ---
 
-## 13. Commissioning / acceptance checklist
+## 12. Onderhoud
 
-Before a demonstration or production validation, verify:
+Controleer regelmatig of:
 
-- [ ] Manager can initiate a product changeover.
-- [ ] Waterspider receives the correct preparation task.
-- [ ] Operator receives the correct changeover workflow.
-- [ ] Correct fixture produces an `OK` result.
-- [ ] Incorrect fixture produces a `NOK` result.
-- [ ] A `NOK` result blocks normal progression.
-- [ ] Product 1 instructions correspond with Product 1.
-- [ ] Product 2 instructions correspond with Product 2.
-- [ ] Final QC can return an `OK` result.
-- [ ] Final QC can return a `NOK` result.
-- [ ] QC result is returned to the Operator interface.
-- [ ] Required product documentation is available.
-- [ ] All devices have stable network access.
+- digitale werkinstructies actueel zijn;
+- technische tekeningen de laatste revisie bevatten;
+- referenties van de mallen correct zijn;
+- cameramarkers schoon en onbeschadigd zijn;
+- de cameralens schoon is;
+- de camerabevestiging niet is verschoven;
+- componentdefinities overeenkomen met de fysieke werkpost;
+- labels en opslaglocaties overeenkomen met de digitale workflow;
+- verouderde productinformatie verwijderd is.
+
+Na belangrijke wijzigingen aan een product of mal moeten ook de digitale referentiegegevens opnieuw worden gecontroleerd.
 
 ---
 
-## 14. Recommended production-grade extensions
+## 13. Inbedrijfstelling / acceptatiechecklist
 
-For development beyond the prototype stage, the following extensions are recommended:
+Controleer vóór een demonstratie of productievalidatie:
 
-### User and access management
+- [ ] Manager kan een productwissel starten.
+- [ ] Waterspider ontvangt de juiste voorbereidingstaak.
+- [ ] Operator ontvangt de juiste omstelworkflow.
+- [ ] Correcte mal geeft een `OK`-resultaat.
+- [ ] Verkeerde mal geeft een `NOK`-resultaat.
+- [ ] Een `NOK`-resultaat blokkeert normale voortgang.
+- [ ] Product 1-instructies komen overeen met Product 1.
+- [ ] Product 2-instructies komen overeen met Product 2.
+- [ ] Eindcontrole kan een `OK`-resultaat teruggeven.
+- [ ] Eindcontrole kan een `NOK`-resultaat teruggeven.
+- [ ] QC-resultaat wordt teruggestuurd naar de Operator-interface.
+- [ ] Vereiste productdocumentatie is beschikbaar.
+- [ ] Alle toestellen hebben een stabiele netwerkverbinding.
 
-- authenticated users;
-- role-based permissions;
-- administrator accounts.
+---
 
-### Centralized data
+## 14. Aanbevolen uitbreidingen voor productiegebruik
 
-- production database;
-- centralized product references;
-- production history;
-- QC result storage.
+Voor verdere ontwikkeling na de prototypefase worden de volgende uitbreidingen aanbevolen.
 
-### Traceability
+### Gebruikers- en toegangsbeheer
 
-Store:
+- geauthenticeerde gebruikers;
+- rolgebaseerde rechten;
+- administratoraccounts.
 
-- product variant;
-- operator ID;
-- changeover start/end;
-- fixture QC result;
-- final QC result;
-- NOK reason;
-- rework;
-- timestamps.
+### Centrale gegevensopslag
 
-### Revision control
+- productiedatabase;
+- centrale productreferenties;
+- productiehistoriek;
+- opslag van QC-resultaten.
 
-Ensure that only the latest approved work instruction, technical drawing, component list and QC reference can be used.
+### Traceerbaarheid
 
-### Industrial integration
+Mogelijke gegevens om op te slaan:
 
-Future integrations could include:
+- productvariant;
+- operator-ID;
+- start- en eindtijd van de omstelling;
+- resultaat malcontrole;
+- resultaat eindcontrole;
+- reden van NOK;
+- herwerking;
+- tijdstempels.
+
+### Revisiebeheer
+
+Zorg ervoor dat enkel de meest recente goedgekeurde versie van de volgende documenten gebruikt kan worden:
+
+- werkinstructie;
+- technische tekening;
+- onderdelenlijst;
+- QC-referentie.
+
+### Industriële integratie
+
+Mogelijke toekomstige integraties:
 
 - MES;
 - ERP;
-- barcode / QR scanning;
+- barcode- / QR-scanning;
 - RFID;
-- tool verification;
-- automatic KPI logging;
-- validated industrial vision.
+- gereedschapsverificatie;
+- automatische KPI-registratie;
+- gevalideerde industriële vision.
 
 ---
 
-## 15. Intended benefits
+## 15. Beoogde voordelen
 
-The Digital Workstation aims to contribute to:
+Het Digital Workstation wil bijdragen aan:
 
-- shorter internal changeover time;
-- reduced searching;
-- reduced waiting;
-- fewer assembly mistakes;
-- standardized work;
-- clearer division of responsibilities;
-- external preparation of setup activities;
-- improved product quality;
-- easier operator training;
-- better process traceability;
-- structured continuous improvement.
+- kortere interne omsteltijd;
+- minder zoeken;
+- minder wachten;
+- minder montagefouten;
+- gestandaardiseerd werk;
+- duidelijkere rolverdeling;
+- externe voorbereiding van omstelactiviteiten;
+- betere productkwaliteit;
+- eenvoudiger opleiden van operatoren;
+- betere traceerbaarheid;
+- gestructureerde continue verbetering.
 
-The Digital Workstation should therefore be considered together with the **physical workstation improvements** rather than as a standalone intervention.
+Het Digital Workstation moet daarom samen met de **fysieke verbeteringen aan de werkpost** worden beschouwd en niet als een losstaande oplossing.
 
 ---
 
-## 16. Project status
+## 16. Projectstatus
 
-**Current maturity:** Functional prototype / demonstrator.
+**Huidige maturiteit:** Functioneel prototype / demonstrator.
 
-The prototype demonstrates the integration of:
+Het prototype demonstreert de integratie van:
 
-> **SMED methodology + standardized workstation + digital instructions + role-based workflows + automated quality control**
+> **SMED-methodologie + gestandaardiseerde werkpost + digitale instructies + rolgebaseerde workflows + geautomatiseerde kwaliteitscontrole**
 
-Before commercial deployment, additional validation would be required for:
+Voor commerciële inzet zijn bijkomende validaties nodig op het vlak van:
 
-- reliability;
+- betrouwbaarheid;
 - cybersecurity;
-- authentication;
-- data storage;
-- industrial safety;
-- traceability;
-- production integration;
-- quality-control robustness.
+- authenticatie;
+- gegevensopslag;
+- industriële veiligheid;
+- traceerbaarheid;
+- productie-integratie;
+- robuustheid van kwaliteitscontrole.
 
 ---
 
-## 17. Repository structure
+## 17. Repositorystructuur
 
-A recommended repository structure is:
+Een aanbevolen repositorystructuur is:
 
 ```text
 DigitalWorkstation/
@@ -534,23 +539,23 @@ DigitalWorkstation/
     `-- images/
 ```
 
-For the current prototype, this `README.md` provides the main technical and product overview.
+Voor het huidige prototype bevat deze `README.md` het belangrijkste technische en productoverzicht.
 
-Additional detailed documentation can be added to the `/docs` folder as the system develops.
+Meer gedetailleerde documentatie kan later worden toegevoegd in de map `/docs`.
 
 ---
 
-## 18. Document information
+## 18. Documentinformatie
 
-| Field | Value |
+| Veld | Waarde |
 |---|---|
 | Product | Digital Workstation |
-| Document | Repository README / Technical Product Overview |
-| Version | 1.0 |
-| Status | Prototype documentation |
-| Author | Florine De Spiegeleer |
-| Project context | Sirris / UGent |
-| Date | September 2026 |
+| Document | Repository README / Technisch productoverzicht |
+| Versie | 1.0 |
+| Status | Prototypedocumentatie |
+| Auteur | Florine De Spiegeleer |
+| Projectcontext | Sirris / UGent |
+| Datum | September 2026 |
 
 ---
 
@@ -561,8 +566,8 @@ https://florinedespiegeleer.github.io/DigitalWorkstation/
 
 ---
 
-## License / usage
+## Gebruik
 
-This repository contains a prototype developed for an industrial engineering / workstation-improvement project.
+Deze repository bevat een prototype dat werd ontwikkeld binnen een industrieel engineering- en werkpostverbeteringsproject.
 
-Before reuse in a production environment, the system should be validated for the specific process, product, hardware and safety requirements.
+Vóór hergebruik in een productieomgeving moet het systeem worden gevalideerd voor het specifieke proces, product, de gebruikte hardware en de geldende veiligheidsvereisten.
