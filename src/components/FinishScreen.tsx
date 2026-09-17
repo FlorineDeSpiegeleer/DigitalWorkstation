@@ -215,7 +215,7 @@ export function FinishScreen({ sessionData, totalTime, productName, operatorSett
             </div>
             {producedCount >= orderQuantity && (
               <p className="text-xs text-emerald-700 font-medium mt-2">
-                Order voltooid — deze order is klaar.
+                Order voltooid, deze order is klaar.
               </p>
             )}
           </div>
