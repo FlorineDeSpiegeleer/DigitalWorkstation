@@ -46,7 +46,7 @@ export function Product1ApprovedScreen({
     <div className="h-full min-h-0 flex flex-col bg-gray-100 overflow-hidden">
       <IndustrialHeader
         title="Kwaliteitscontrole"
-        subtitle={`${productName} – Eindcontrole`}
+        subtitle={`${productName}, Eindcontrole`}
         operatorSettings={operatorSettings}
         onSettings={onSettings}
       />
