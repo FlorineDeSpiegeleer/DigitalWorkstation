@@ -50,7 +50,7 @@ export function RemoveProduct1Screen({
     <div className="h-full min-h-0 flex flex-col bg-gray-100 overflow-hidden">
       <IndustrialHeader
         title="Product afvoeren"
-        subtitle={`${productName} – Naar opslag`}
+        subtitle={`${productName}, naar opslag`}
         showTimer
         elapsedTime={elapsedTime}
         operatorSettings={operatorSettings}
