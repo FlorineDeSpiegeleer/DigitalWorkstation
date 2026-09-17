@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
-import { Save, AlertTriangle, Camera, Send, Phone, Bell, CheckCircle, Clock, XCircle, CalendarClock, Info } from 'lucide-react';
+import { Save, AlertTriangle, Camera, Send, Phone, Bell, CheckCircle, Clock, XCircle, CalendarClock, Info, Download } from 'lucide-react';
 import { IndustrialHeader } from './IndustrialHeader';
-import { OperatorSettings, PlannedChangeover, NTFY_EVENTS_TOPIC } from '../main';
+import { OperatorSettings, PlannedChangeover, StepLogEntry, NTFY_EVENTS_TOPIC } from '../main';
 
 interface Props {
   operatorSettings: OperatorSettings;
@@ -13,6 +13,9 @@ interface Props {
   // Manager-pagina, doorgestuurd via ntfy.sh). De operator kan hier
   // zelf niets plannen — dat kan enkel de manager.
   plannedChangeovers?: PlannedChangeover[];
+  // NIEUW: log van elke doorlopen voorbereidings-/montagestap, voor de
+  // SMED-analyse. Downloadbaar als CSV.
+  stepLog?: StepLogEntry[];
 }
 
 interface Incident {
@@ -30,8 +33,55 @@ export function SettingsScreen({
   currentProduct = 'Product 2',
   currentStep = 'Product afvoeren',
   plannedChangeovers = [],
+  stepLog = [],
 }: Props) {
   const [settings, setSettings] = useState(operatorSettings);
+
+  // NIEUW: CSV-export van het stepLog (voorbereiding + montage), klaar
+  // voor de SMED-analyse. "Verspilling"/"waardetoevoeging" komen later
+  // apart bij, dit levert enkel de ruwe tijdsregistratie per stap.
+  const downloadStepLogCsv = () => {
+    const header = [
+      'Fase',
+      'Product',
+      'Stap',
+      'Starttijd',
+      'Stoptijd',
+      'Duur (s)',
+    ];
+
+    const rows = stepLog.map((entry) => [
+      entry.phase,
+      entry.product,
+      entry.step,
+      new Date(entry.startTime).toLocaleString('nl-BE'),
+      new Date(entry.stopTime).toLocaleString('nl-BE'),
+      (entry.durationMs / 1000).toFixed(1),
+    ]);
+
+    const escapeCell = (cell: string) =>
+      /[";\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
+
+    const csv = [header, ...rows]
+      .map((row) => row.map(escapeCell).join(';'))
+      .join('\n');
+
+    const blob = new Blob(['\uFEFF' + csv], {
+      type: 'text/csv;charset=utf-8;',
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `smed-registratie-${new Date()
+      .toISOString()
+      .slice(0, 19)
+      .replace(/[:T]/g, '-')}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   // Problem reporting
   const [showProblemForm, setShowProblemForm] = useState(false);
@@ -444,6 +494,35 @@ export function SettingsScreen({
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* NIEUW: SMED-registratie downloaden */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+              <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-1 font-medium">
+                SMED-registratie
+              </h3>
+
+              <div className="bg-blue-50 border-l-4 border-blue-600 rounded-lg p-4 mb-4 flex items-start gap-3">
+                <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-700 leading-relaxed">
+                  Elke voorbereidings- en montagestap wordt automatisch geregistreerd (start, stop, duur). Download dit als CSV voor de SMED-analyse.
+                </p>
+              </div>
+
+              <p className="text-sm text-gray-600 mb-3">
+                {stepLog.length === 0
+                  ? 'Nog geen stappen geregistreerd.'
+                  : `${stepLog.length} stappen geregistreerd.`}
+              </p>
+
+              <button
+                onClick={downloadStepLogCsv}
+                disabled={stepLog.length === 0}
+                className="w-full py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-200 disabled:text-gray-400 text-white"
+              >
+                <Download className="w-4 h-4" />
+                CSV downloaden
+              </button>
             </div>
 
             {/* Notifications */}
