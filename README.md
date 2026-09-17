@@ -85,7 +85,7 @@ Manager      9999
 
 De PIN's staan niet letterlijk als constante in de interface, maar worden in `main.tsx` gehasht met een eenvoudige `simpleHash()`-functie.
 
-Dit is **geen echte beveiliging**. Het is alleen bedoeld om te vermijden dat iemand tijdens een demo per ongeluk de verkeerde interface opent.
+Dit is **geen echte beveiliging**. Het is alleen bedoeld om de werking aan te tonen.
 
 Voor echt productiegebruik zou dit vervangen moeten worden door gebruikersaccounts of een server-side login.
 
