@@ -563,7 +563,7 @@ function HomeScreen({
 
                 <img
                   src={SIRRIS_LOGO}
-                  alt="Sirris — innovation forward"
+                  alt="Sirris, innovation forward"
                   className="h-12 md:h-14 w-auto"
                 />
 
@@ -3946,6 +3946,23 @@ function ManagerApp({
       savedManagerState?.eventsLog ?? []
     );
 
+  // NIEUW: bijhouden welke omstellingen de manager zelf al ingepland heeft,
+  // zodat dit overzicht ook hier zichtbaar blijft (niet enkel bij de
+  // operator/waterspider die het bericht ontvangen).
+  const [plannedChangeoverLog, setPlannedChangeoverLog] = useState<
+    Array<{
+      fromProduct: string;
+      toProduct: string;
+      trigger: 'scheduled' | 'now' | 'after-current-product';
+      plannedDate: string;
+      plannedTime: string;
+      line: string;
+      station: string;
+      quantity: number;
+      timestamp: number;
+    }>
+  >(savedManagerState?.plannedChangeoverLog ?? []);
+
   const [planning, setPlanning] = useState({
     fromProduct: 'Product 1',
     toProduct: 'Product 2',
@@ -3971,6 +3988,7 @@ function ManagerApp({
           waterspiderStatus,
           qualityLog,
           eventsLog,
+          plannedChangeoverLog,
         })
       );
     } catch {
@@ -3982,6 +4000,7 @@ function ManagerApp({
     waterspiderStatus,
     qualityLog,
     eventsLog,
+    plannedChangeoverLog,
   ]);
 
   // Live status van Operator + Waterspider
@@ -4075,31 +4094,34 @@ function ManagerApp({
   const handlePlan = () => {
     if (planning.fromProduct === planning.toProduct) return;
 
+    const payload = {
+      fromProduct: planning.fromProduct,
+      toProduct: planning.toProduct,
+      trigger: planning.trigger,
+      plannedDate: planning.trigger === 'scheduled' ? planning.plannedDate : '',
+      plannedTime: planning.trigger === 'scheduled' ? planning.plannedTime : '',
+      line: planning.line,
+      station: planning.station,
+      quantity: planning.quantity,
+      timestamp: Date.now(),
+    };
+
     fetch(`https://ntfy.sh/${NTFY_CHANGEOVER_TOPIC}`, {
       method: 'POST',
-      body: JSON.stringify({
-        fromProduct: planning.fromProduct,
-        toProduct: planning.toProduct,
-        trigger: planning.trigger,
-        plannedDate: planning.trigger === 'scheduled' ? planning.plannedDate : '',
-        plannedTime: planning.trigger === 'scheduled' ? planning.plannedTime : '',
-        line: planning.line,
-        station: planning.station,
-        quantity: planning.quantity,
-        timestamp: Date.now(),
-      }),
+      body: JSON.stringify(payload),
     })
       .then(() => {
         setJustPlanned(true);
         setTimeout(() => setJustPlanned(false), 3000);
+        setPlannedChangeoverLog((prev) => [payload, ...prev].slice(0, 20));
       })
       .catch(() => {
-        alert('Kon de omstelling niet versturen — controleer de internetverbinding.');
+        alert('Kon de omstelling niet versturen, controleer de internetverbinding.');
       });
   };
 
   const formatAgo = (timestamp?: number) => {
-    if (!timestamp) return '—';
+    if (!timestamp) return '-';
     const seconds = Math.floor((Date.now() - timestamp) / 1000);
     if (seconds < 5) return 'zojuist';
     if (seconds < 60) return `${seconds}s geleden`;
@@ -4212,11 +4234,11 @@ function ManagerApp({
                   {waterspiderStatus.screen === 'route'
                     ? `Logistieke ronde ${waterspiderStatus.roundNumber ?? ''}`
                     : waterspiderStatus.screen === 'station'
-                    ? `Controle — ${waterspiderStatus.station || ''}`
+                    ? `Controle: ${waterspiderStatus.station || ''}`
                     : waterspiderStatus.screen === 'pickup'
-                    ? `Ophaallijst — ${waterspiderStatus.station || ''}`
+                    ? `Ophaallijst: ${waterspiderStatus.station || ''}`
                     : waterspiderStatus.screen === 'refill'
-                    ? `Aanvullen — ${waterspiderStatus.station || ''}`
+                    ? `Aanvullen: ${waterspiderStatus.station || ''}`
                     : 'Onbekend scherm'}
                 </p>
               </div>
@@ -4363,6 +4385,43 @@ function ManagerApp({
               >
                 {planning.trigger === 'now' ? 'Wissel nu doorsturen' : 'Omstelling inplannen'}
               </button>
+            </div>
+          </div>
+
+          {/* GEPLANDE OMSTELLINGEN: overzicht van wat de manager zelf al
+              heeft ingepland, ongeacht of de operator/waterspider dit al
+              verwerkt heeft. */}
+          <div className="bg-white rounded-2xl p-6 shadow-lg flex flex-col max-h-[400px]">
+            <h3 className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-4 flex-shrink-0">
+              Geplande omstellingen
+            </h3>
+
+            <div className="flex-1 overflow-y-auto space-y-2">
+              {plannedChangeoverLog.length === 0 ? (
+                <p className="text-sm text-slate-400">Nog geen omstellingen ingepland.</p>
+              ) : (
+                plannedChangeoverLog.map((entry, idx) => (
+                  <div
+                    key={idx}
+                    className="px-3 py-2 rounded-lg border border-gray-200 bg-gray-50"
+                  >
+                    <div className="flex items-center justify-between text-sm font-medium text-slate-900">
+                      <span>{entry.fromProduct} → {entry.toProduct}</span>
+                      <span className="text-xs text-slate-500">{entry.line} · {entry.station}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-slate-500 mt-1">
+                      <span>
+                        {entry.trigger === 'now'
+                          ? 'Nu'
+                          : entry.trigger === 'after-current-product'
+                          ? 'Na huidig product'
+                          : `${entry.plannedDate} ${entry.plannedTime}`}
+                      </span>
+                      <span>{entry.quantity} stuks</span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -4533,7 +4592,7 @@ const BIN_DATABASE: BinDefinition[] = [
   },
   {
     qrCode: 'BIN-M4',
-    material: 'M4 bouten',
+    material: 'M3 bouten',
     pickupLocation: 'Supermarkt A2',
     stationLocation: 'Poka-yoke kast · B2',
   },
@@ -4551,7 +4610,7 @@ const BIN_DATABASE: BinDefinition[] = [
   },
   {
     qrCode: 'BIN-TNUT-M4',
-    material: 'T-moeren M4',
+    material: 'T-moeren M5',
     pickupLocation: 'Supermarkt A5',
     stationLocation: 'Poka-yoke kast · B5',
   },
@@ -5116,6 +5175,10 @@ function WaterspiderApp({ onHome }: Props) {
         />
 
         <main className="flex-1 min-h-0 p-2.5 flex flex-col justify-center">
+          <div className="w-full aspect-[4/3] rounded-xl bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 text-[11px] font-medium mb-3">
+            Foto van de bakken
+          </div>
+
           <div className="text-center mb-3">
             <Boxes className="w-10 h-10 mx-auto text-amber-600 mb-2" />
             <h2 className="text-[18px] font-black text-slate-900">
@@ -5310,26 +5373,29 @@ function WaterspiderApp({ onHome }: Props) {
               Doel: {profile.target}
             </p>
 
-            <div className="mt-3 flex items-center justify-center gap-2.5">
-              <button
-                onClick={() => setCount((counted ?? 0) - 1)}
-                className="w-11 h-11 rounded-xl bg-slate-100 text-slate-900 text-[24px] font-black"
-              >
-                −
-              </button>
-
-              <div className="w-14 h-14 rounded-xl bg-[#0B1929] text-white flex items-center justify-center">
-                <span className="text-[28px] font-black">
-                  {counted ?? '–'}
-                </span>
-              </div>
-
-              <button
-                onClick={() => setCount((counted ?? 0) + 1)}
-                className="w-11 h-11 rounded-xl bg-slate-100 text-slate-900 text-[24px] font-black"
-              >
-                +
-              </button>
+            <div className="mt-3 flex items-center justify-center">
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={profile.target}
+                value={counted ?? ''}
+                placeholder="0"
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === '') {
+                    setProfileCounts((prev) => {
+                      const next = { ...prev };
+                      delete next[profile.id];
+                      return next;
+                    });
+                    return;
+                  }
+                  const parsed = parseInt(raw, 10);
+                  if (!Number.isNaN(parsed)) setCount(parsed);
+                }}
+                className="w-24 h-16 rounded-xl bg-[#0B1929] text-white text-center text-[28px] font-black outline-none"
+              />
             </div>
 
             <button
