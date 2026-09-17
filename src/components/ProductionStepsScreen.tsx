@@ -63,37 +63,37 @@ const IMG_WIEL_MAL_2 =
 const PRODUCT2_STEPS: ProductionStep[] = [
   {
     id: 1,
-    title: "Neem het 630 mm profiel",
-    instruction: "Neem het lange aluminium profiel van 630 mm \u2014 de Nutensteinen zitten al voorgemonteerd aan beide uiteinden.",
-    imageUrl: IMG_630_PROFIEL,
+    title: "Neem de twee profielen 370\u00d730 mm (voorbereid)",
+    instruction: "Neem 2 aluminium profielen van 370\u00d730 mm. De Nutensteinen zitten al voorgemonteerd aan beide uiteinden.",
+    imageUrl: IMG_370_PROFIEL,
     requiresTool: false,
   },
   {
     id: 2,
-    title: "Schuur het profiel",
-    instruction: "Schuur de scherpe randen van het profiel glad \u2014 wrijf 2 keer over elke kant.",
+    title: "Schuur de profielen",
+    instruction: "Schuur de scherpe randen van beide profielen glad. Wrijf telkens 2 keer over elke kant.",
     imageUrl: null,
     requiresTool: false,
   },
   {
     id: 3,
-    title: "Neem de twee korte profielen van 370 mm",
-    instruction: "Neem 2 aluminium profielen van 370 mm \u2014 de Nutensteinen zitten al voorgemonteerd aan beide uiteinden.",
-    imageUrl: IMG_370_PROFIEL,
+    title: "Schuif de T-moeren in de 370 mm profielen",
+    instruction: "Schuif de T-moeren in beide 370 mm profielen en positioneer ze rond het midden van het profiel.",
+    imageUrl: IMG_TMOEREN,
     requiresTool: false,
   },
   {
     id: 4,
-    title: "Schuur de profielen",
-    instruction: "Schuur de scherpe randen van beide profielen glad \u2014 wrijf telkens 2 keer over elke kant.",
-    imageUrl: null,
+    title: "Neem het profiel 630\u00d730 mm (voorbereid)",
+    instruction: "Neem het lange aluminium profiel van 630\u00d730 mm. De Nutensteinen zitten al voorgemonteerd aan beide uiteinden.",
+    imageUrl: IMG_630_PROFIEL,
     requiresTool: false,
   },
   {
     id: 5,
-    title: "Schuif de T-moeren in de 370 mm profielen",
-    instruction: "Schuif de T-moeren in beide 370 mm profielen en positioneer ze rond het midden van het profiel.",
-    imageUrl: IMG_TMOEREN,
+    title: "Schuur het profiel",
+    instruction: "Schuur de scherpe randen van het profiel glad. Wrijf 2 keer over elke kant.",
+    imageUrl: null,
     requiresTool: false,
   },
   {
@@ -128,7 +128,7 @@ const PRODUCT2_STEPS: ProductionStep[] = [
   {
     id: 10,
     title: "Plaats en monteer de wielen links",
-    instruction: "Leg de wielen in de voorziene uitsparingen van de mal, bovenop de profielen \u2014 de mal positioneert ze automatisch op de juiste plaats. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
+    instruction: "Leg de wielen in de voorziene uitsparingen van de mal, bovenop de profielen. De mal positioneert ze automatisch op de juiste plaats. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
     imageUrl: IMG_WIEL_GEMONTEERD,
     requiresTool: true,
     toolName: 'M3 inbussleutel',
@@ -139,7 +139,6 @@ const PRODUCT2_STEPS: ProductionStep[] = [
     instruction: "Verplaats de profielstructuur en plaats nu de rechterzijde in de voorziene mal.",
     imageUrl: IMG_WIEL_MAL_1,
     requiresTool: false,
-    mirror: true,
   },
   {
     id: 12,
@@ -147,7 +146,6 @@ const PRODUCT2_STEPS: ProductionStep[] = [
     instruction: "Monteer de lange Nutensteinen met drie gaten op de voorziene plaatsen aan de rechterzijde.",
     imageUrl: IMG_WIEL_MAL_2,
     requiresTool: false,
-    mirror: true,
   },
   {
     id: 13,
@@ -156,52 +154,50 @@ const PRODUCT2_STEPS: ProductionStep[] = [
     imageUrl: IMG_WIEL_GEMONTEERD,
     requiresTool: true,
     toolName: 'M3 inbussleutel',
-    mirror: true,
   },
   {
     id: 14,
-    title: 'Eindproduct — klaar voor controle',
+    title: 'Eindproduct, klaar voor controle',
     instruction: 'De assemblage is voltooid. Vergelijk het resultaat met de referentiefoto voor je verdergaat naar de eindcontrole.',
     imageUrl: IMG_WIEL_GEMONTEERD,
     requiresTool: false,
-    isFinalPhoto: true,
   },
 ];
 
 const PRODUCT1_STEPS: ProductionStep[] = [
   {
     id: 1,
-    title: "Neem het profiel van 370x60 mm",
-    instruction: "Neem het aluminium profiel van 370x60 mm \u2014 de Nutensteinen zitten al voorgemonteerd aan beide uiteinden.",
-    imageUrl: IMG_370X60,
+    title: "Neem de twee profielen 630\u00d730 mm (voorbereid)",
+    instruction: "Neem 2 aluminium profielen van 630\u00d730 mm. De Nutensteinen zitten al voorgemonteerd aan beide uiteinden.",
+    imageUrl: IMG_630_PROFIEL,
     requiresTool: false,
   },
   {
     id: 2,
-    title: "Schuur het profiel",
-    instruction: "Schuur de scherpe randen van het profiel glad \u2014 wrijf 2 keer over elke kant.",
+    title: "Schuur de profielen",
+    instruction: "Schuur de scherpe randen van beide profielen glad. Wrijf telkens 2 keer over elke kant.",
     imageUrl: null,
     requiresTool: false,
   },
   {
     id: 3,
-    title: "Neem de twee lange profielen van 630 mm",
-    instruction: "Neem 2 aluminium profielen van 630 mm \u2014 de Nutensteinen zitten al voorgemonteerd aan beide uiteinden.",
-    imageUrl: IMG_630_PROFIEL,
+    title: "Schuif de T-moeren in de 630 mm profielen",
+    instruction: "Schuif de T-moeren in beide 630 mm profielen en positioneer ze in het midden van het profiel.",
+    imageUrl: IMG_TMOEREN,
     requiresTool: false,
   },
   {
     id: 4,
-    title: "Schuur de profielen",
-    instruction: "Schuur de scherpe randen van beide profielen glad \u2014 wrijf telkens 2 keer over elke kant.",
-    imageUrl: null,
+    title: "Neem het profiel 370\u00d760 mm (voorbereid)",
+    instruction: "Neem het aluminium profiel van 370\u00d760 mm. De Nutensteinen zitten al voorgemonteerd aan beide uiteinden.",
+    imageUrl: IMG_370X60,
     requiresTool: false,
   },
   {
     id: 5,
-    title: "Schuif de T-moeren in de 630 mm profielen",
-    instruction: "Schuif de T-moeren in beide 630 mm profielen en positioneer ze in het midden van het profiel.",
-    imageUrl: IMG_TMOEREN,
+    title: "Schuur het profiel",
+    instruction: "Schuur de scherpe randen van het profiel glad. Wrijf 2 keer over elke kant.",
+    imageUrl: null,
     requiresTool: false,
   },
   {
@@ -236,7 +232,7 @@ const PRODUCT1_STEPS: ProductionStep[] = [
   {
     id: 10,
     title: "Plaats en monteer de wielen links",
-    instruction: "Leg de wielen in de voorziene uitsparingen van de mal, bovenop de profielen \u2014 de mal positioneert ze automatisch op de juiste plaats. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
+    instruction: "Leg de wielen in de voorziene uitsparingen van de mal, bovenop de profielen. De mal positioneert ze automatisch op de juiste plaats. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
     imageUrl: IMG_WIEL_GEMONTEERD,
     requiresTool: true,
     toolName: 'M3 inbussleutel',
@@ -247,7 +243,6 @@ const PRODUCT1_STEPS: ProductionStep[] = [
     instruction: "Verplaats de profielstructuur en plaats nu de rechterzijde in de voorziene mal.",
     imageUrl: IMG_WIEL_MAL_1,
     requiresTool: false,
-    mirror: true,
   },
   {
     id: 12,
@@ -255,7 +250,6 @@ const PRODUCT1_STEPS: ProductionStep[] = [
     instruction: "Monteer de lange Nutensteinen met drie gaten op de voorziene plaatsen aan de rechterzijde.",
     imageUrl: IMG_WIEL_MAL_2,
     requiresTool: false,
-    mirror: true,
   },
   {
     id: 13,
@@ -264,23 +258,21 @@ const PRODUCT1_STEPS: ProductionStep[] = [
     imageUrl: IMG_WIEL_GEMONTEERD,
     requiresTool: true,
     toolName: 'M3 inbussleutel',
-    mirror: true,
   },
   {
     id: 14,
     title: "Monteer het handvat",
-    instruction: "Bevestig het handvat in het midden van \u00e9\u00e9n van de 630 mm profielen, met een M3-bout en een M3-inbussleutel.",
+    instruction: "Bevestig het handvat in het midden van \u00e9\u00e9n van de 630 mm profielen, met een M5-bout en een M5-inbussleutel.",
     imageUrl: null,
     requiresTool: true,
-    toolName: 'M3 inbussleutel',
+    toolName: 'M5 inbussleutel',
   },
   {
     id: 15,
-    title: 'Eindproduct — klaar voor controle',
+    title: 'Eindproduct, klaar voor controle',
     instruction: 'De assemblage is voltooid. Vergelijk het resultaat met de referentiefoto voor je verdergaat naar de eindcontrole.',
     imageUrl: IMG_WIEL_GEMONTEERD,
     requiresTool: false,
-    isFinalPhoto: true,
   },
 ];
 
@@ -316,7 +308,7 @@ export function ProductionStepsScreen({ onComplete, elapsedTime, productName, op
         title={
           currentStep.isFinalPhoto
             ? 'Montage voltooid'
-            : `Montage – Stap ${currentStepIndex + 1} van ${totalSteps - 1}`
+            : `Montage, stap ${currentStepIndex + 1} van ${totalSteps - 1}`
         }
         subtitle={`${productName} assemblage`}
         showTimer
