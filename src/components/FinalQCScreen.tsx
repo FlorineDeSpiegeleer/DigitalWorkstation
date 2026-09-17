@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2, X, Check, ChevronRight } from 'lucide-react';
 import { IndustrialHeader } from './IndustrialHeader';
+import { NTFY_TOPIC } from '../main';
 
 interface Props {
   onPass: () => void;
@@ -18,11 +19,13 @@ interface Props {
 
 type QCState = 'waiting' | 'result-pass' | 'result-fail';
 
-// TIJDELIJK: de echte automatische productanalyse is nog niet gebouwd.
-// Deze eindcontrole simuleert daarom zelf een geslaagde controle na een
-// korte, realistische wachttijd. Zodra de echte camera-analyse klaar is,
-// vervang je dit blok door de effectieve resultaatverwerking.
-const FAKE_QC_DELAY_MS = 2500;
+interface CheckResult {
+  product: string;
+  status: 'ok' | 'error';
+  percentage: number;
+  context?: 'camera-check' | 'final-qc' | null;
+  timestamp: number;
+}
 
 export function FinalQCScreen({
   onPass,
@@ -35,21 +38,73 @@ export function FinalQCScreen({
 }: Props) {
   const [state, setState] = useState<QCState>('waiting');
 
+  // Kleine tijdsmarge tussen telefoon en tablet.
+  const lastSeenRef = useRef<number>(Date.now() - 10000);
+
+  const expectedProduct =
+    productName === 'Product 2' ? 'product2' : 'product1';
+
+  const handleResult = (data: CheckResult) => {
+    if (!data?.timestamp) return;
+
+    // Dit scherm mag alleen resultaten van de PRODUCTCONTROLE verwerken.
+    if (data.context !== 'final-qc') return;
+
+    if (data.product !== expectedProduct) return;
+
+    if (data.timestamp <= lastSeenRef.current) return;
+
+    lastSeenRef.current = data.timestamp;
+    setState(data.status === 'ok' ? 'result-pass' : 'result-fail');
+  };
+
   useEffect(() => {
     if (state !== 'waiting') return;
 
-    const timeout = window.setTimeout(() => {
-      setState('result-pass');
-    }, FAKE_QC_DELAY_MS);
+    const interval = window.setInterval(() => {
+      try {
+        const raw = localStorage.getItem('camera_check_result');
+        if (!raw) return;
+        handleResult(JSON.parse(raw));
+      } catch {
+        // Ongeldige data: blijven wachten.
+      }
+    }, 1000);
 
-    return () => window.clearTimeout(timeout);
-  }, [state]);
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, expectedProduct]);
+
+  useEffect(() => {
+    if (state !== 'waiting') return;
+
+    let es: EventSource | null = null;
+
+    try {
+      es = new EventSource(`https://ntfy.sh/${NTFY_TOPIC}/sse`);
+
+      es.onmessage = (event) => {
+        try {
+          const envelope = JSON.parse(event.data);
+          if (!envelope?.message) return;
+          handleResult(JSON.parse(envelope.message));
+        } catch {
+          // Ongeldig bericht: negeren.
+        }
+      };
+    } catch {
+      // Geen internet: de tablet blijft dan gewoon wachten.
+    }
+
+    return () => es?.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, expectedProduct]);
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-gray-100 overflow-hidden relative">
       <IndustrialHeader
         title={`${productName}, Eindcontrole`}
-        subtitle="Het product wordt automatisch gecontroleerd"
+        subtitle="De telefoon opent automatisch de productcontrole"
         showTimer
         elapsedTime={elapsedTime}
         operatorSettings={operatorSettings}
@@ -61,10 +116,10 @@ export function FinalQCScreen({
         <div className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 p-10 flex flex-col items-center justify-center text-center">
           <Loader2 className="w-16 h-16 text-blue-500 animate-spin mb-6" />
           <h3 className="text-2xl text-gray-800 font-bold mb-2">
-            Product wordt gecontroleerd…
+            Wachten op controlefoto…
           </h3>
           <p className="text-gray-500 max-w-sm">
-            Even geduld, {productName} wordt vergeleken met de referentiefoto.
+            Neem de controlefoto van {productName} op de telefoon. Het resultaat verschijnt hier automatisch.
           </p>
         </div>
       </div>
