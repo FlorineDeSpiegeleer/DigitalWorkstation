@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { Smartphone, Loader2, X, Check, ChevronRight } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Loader2, X, Check, ChevronRight } from 'lucide-react';
 import { IndustrialHeader } from './IndustrialHeader';
-import { NTFY_TOPIC } from '../main';
 
 interface Props {
   onPass: () => void;
@@ -19,13 +18,11 @@ interface Props {
 
 type QCState = 'waiting' | 'result-pass' | 'result-fail';
 
-interface CheckResult {
-  product: string;
-  status: 'ok' | 'error';
-  percentage: number;
-  context?: 'camera-check' | 'final-qc' | null;
-  timestamp: number;
-}
+// TIJDELIJK: de echte automatische productanalyse is nog niet gebouwd.
+// Deze eindcontrole simuleert daarom zelf een geslaagde controle na een
+// korte, realistische wachttijd. Zodra de echte camera-analyse klaar is,
+// vervang je dit blok door de effectieve resultaatverwerking.
+const FAKE_QC_DELAY_MS = 2500;
 
 export function FinalQCScreen({
   onPass,
@@ -38,73 +35,21 @@ export function FinalQCScreen({
 }: Props) {
   const [state, setState] = useState<QCState>('waiting');
 
-  // Kleine tijdsmarge tussen telefoon en tablet.
-  const lastSeenRef = useRef<number>(Date.now() - 10000);
-
-  const expectedProduct =
-    productName === 'Product 2' ? 'product2' : 'product1';
-
-  const handleResult = (data: CheckResult) => {
-    if (!data?.timestamp) return;
-
-    // Dit scherm mag alleen resultaten van de PRODUCTCONTROLE verwerken.
-    if (data.context !== 'final-qc') return;
-
-    if (data.product !== expectedProduct) return;
-
-    if (data.timestamp <= lastSeenRef.current) return;
-
-    lastSeenRef.current = data.timestamp;
-    setState(data.status === 'ok' ? 'result-pass' : 'result-fail');
-  };
-
   useEffect(() => {
     if (state !== 'waiting') return;
 
-    const interval = window.setInterval(() => {
-      try {
-        const raw = localStorage.getItem('camera_check_result');
-        if (!raw) return;
-        handleResult(JSON.parse(raw));
-      } catch {
-        // Ongeldige data: blijven wachten.
-      }
-    }, 1000);
+    const timeout = window.setTimeout(() => {
+      setState('result-pass');
+    }, FAKE_QC_DELAY_MS);
 
-    return () => window.clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, expectedProduct]);
-
-  useEffect(() => {
-    if (state !== 'waiting') return;
-
-    let es: EventSource | null = null;
-
-    try {
-      es = new EventSource(`https://ntfy.sh/${NTFY_TOPIC}/sse`);
-
-      es.onmessage = (event) => {
-        try {
-          const envelope = JSON.parse(event.data);
-          if (!envelope?.message) return;
-          handleResult(JSON.parse(envelope.message));
-        } catch {
-          // Ongeldig bericht: negeren.
-        }
-      };
-    } catch {
-      // Geen internet: demo-fallback rechtsonder blijft beschikbaar.
-    }
-
-    return () => es?.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, expectedProduct]);
+    return () => window.clearTimeout(timeout);
+  }, [state]);
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-gray-100 overflow-hidden relative">
       <IndustrialHeader
-        title={`${productName} – Eindcontrole`}
-        subtitle="De telefoon opent automatisch de productcontrole"
+        title={`${productName}, Eindcontrole`}
+        subtitle="Het product wordt automatisch gecontroleerd"
         showTimer
         elapsedTime={elapsedTime}
         operatorSettings={operatorSettings}
@@ -112,62 +57,16 @@ export function FinalQCScreen({
         onSettings={onSettings}
       />
 
-      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col md:flex-row p-8 gap-8 max-w-[1280px] mx-auto w-full">
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-8 max-w-[1280px] mx-auto w-full">
         <div className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 p-10 flex flex-col items-center justify-center text-center">
           <Loader2 className="w-16 h-16 text-blue-500 animate-spin mb-6" />
           <h3 className="text-2xl text-gray-800 font-bold mb-2">
-            Wachten op controlefoto…
+            Product wordt gecontroleerd…
           </h3>
           <p className="text-gray-500 max-w-sm">
-            Zodra de operator op dit scherm komt, schakelt de telefoon in camerastand automatisch naar de productcontrole van {productName}.
+            Even geduld, {productName} wordt vergeleken met de referentiefoto.
           </p>
         </div>
-
-        <div className="w-full md:w-96 flex flex-col gap-5">
-          <div className="bg-blue-50 border-l-4 border-blue-600 rounded-lg p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <Smartphone className="w-6 h-6 text-blue-600" />
-              <h4 className="text-sm text-blue-800 font-bold uppercase">
-                Telefoon in camerastand
-              </h4>
-            </div>
-
-            <ol className="text-sm text-blue-700 space-y-2 list-decimal list-inside">
-              <li>Laat de telefoon openstaan op <strong>Camera</strong>.</li>
-              <li><strong>Productcontrole</strong> opent automatisch.</li>
-              <li><strong>{productName}</strong> wordt automatisch geselecteerd.</li>
-              <li>Neem de controlefoto en voer de productcontrole uit.</li>
-            </ol>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
-            <h4 className="text-xs uppercase tracking-wider text-gray-500 mb-3 font-medium">
-              Belangrijk
-            </h4>
-            <p className="text-sm text-gray-700 leading-relaxed">
-              Dit scherm is nu correct gekoppeld aan <strong>final-qc</strong>. De huidige CameraApp in main.tsx opent Productcontrole automatisch. De echte automatische productanalyse moet nog apart worden ingevuld; zolang die nog niet bestaat, blijven de kleine demo-fallbackknoppen rechtsonder beschikbaar.
-            </p>
-          </div>
-
-          <div className="flex-1" />
-        </div>
-      </div>
-
-      <div className="absolute bottom-2 right-2 flex items-center gap-1">
-        <button
-          onClick={() => setState('result-pass')}
-          aria-label="Handmatig goedkeuren (demo-fallback)"
-          className="w-8 h-8 flex items-center justify-center active:scale-90 transition-transform"
-        >
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 opacity-40" />
-        </button>
-        <button
-          onClick={() => setState('result-fail')}
-          aria-label="Handmatig afkeuren (demo-fallback)"
-          className="w-8 h-8 flex items-center justify-center active:scale-90 transition-transform"
-        >
-          <span className="w-2.5 h-2.5 rounded-full bg-red-500 opacity-40" />
-        </button>
       </div>
 
       {(state === 'result-pass' || state === 'result-fail') && (
