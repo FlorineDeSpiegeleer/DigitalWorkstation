@@ -106,6 +106,7 @@ export function FinalQCScreen({
         title={`${productName}, Eindcontrole`}
         subtitle="De telefoon opent automatisch de productcontrole"
         showTimer
+        timerLabel="Cyclustijd"
         elapsedTime={elapsedTime}
         operatorSettings={operatorSettings}
         onBack={onBack}
