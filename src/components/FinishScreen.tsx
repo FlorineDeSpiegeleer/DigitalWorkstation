@@ -1,4 +1,5 @@
 import { Check, Clock, Download, TrendingUp, ChevronRight } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { IndustrialHeader } from './IndustrialHeader';
 import { SessionData, StepLogEntry } from '../main';
 
@@ -15,7 +16,9 @@ interface Props {
   orderQuantity?: number;
   onStartNextCycle: () => void;
   // NIEUW: log van elke doorlopen voorbereidings-/montagestap, voor de
-  // SMED-analyse. Dit is wat de CSV-export nu effectief bevat.
+  // SMED-analyse. Dit is wat de Excel-export nu effectief bevat: één
+  // tabblad per cyclus (van na het vorige goede product t.e.m. de
+  // eindcontrole van het huidige product).
   stepLog?: StepLogEntry[];
 }
 
@@ -52,40 +55,49 @@ export function FinishScreen({ sessionData, totalTime, productName, operatorSett
     return `${minutes}:${String(seconds).padStart(2, '0')},${String(millis).padStart(3, '0')}`;
   };
 
-  // NIEUW: exporteert nu de volledige stap-per-stap SMED-registratie
-  // (Stap, Activiteit, Start, Stop, Duur) i.p.v. enkel de samenvatting.
-  // Starttijd van de allereerste stap wordt als "tijdstip 0" genomen,
-  // zodat elke rij relatief ten opzichte van het begin van de sessie
-  // getoond wordt — net als in het handmatige SMED-registratieblad.
-  const exportToCSV = () => {
-    const sessionStart =
-      stepLog.length > 0
-        ? Math.min(...stepLog.map((entry) => entry.startTime))
-        : 0;
+  // NIEUW: exporteert nu een echt Excel-bestand (.xlsx) met één tabblad
+  // per cyclus, i.p.v. één platte CSV. Een cyclus loopt van na het
+  // vorige goede product tot en met de eindcontrole van het huidige
+  // product (zie cycle in main.tsx). Binnen elk tabblad zijn de
+  // tijden relatief t.o.v. het begin van DIE cyclus.
+  const exportToExcel = () => {
+    const cycles = Array.from(new Set(stepLog.map((entry) => entry.cycle))).sort(
+      (a, b) => a - b
+    );
 
-    const header = ['Stap', 'Fase', 'Activiteit', 'Start (min:sec,msec)', 'Stop (min:sec,msec)', 'Duur (min:sec,msec)'];
+    if (cycles.length === 0) return;
 
-    const rows = stepLog.map((entry, index) => [
-      String(index + 1),
-      entry.phase,
-      entry.step,
-      formatClock(entry.startTime - sessionStart),
-      formatClock(entry.stopTime - sessionStart),
-      formatClock(entry.durationMs),
-    ]);
+    const workbook = XLSX.utils.book_new();
 
-    const escapeCell = (cell: string) =>
-      /[";\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
+    cycles.forEach((cycle) => {
+      const entries = stepLog.filter((entry) => entry.cycle === cycle);
+      const cycleStart = Math.min(...entries.map((entry) => entry.startTime));
+      const cycleProduct = entries[0]?.product ?? '';
 
-    const csvData = [header, ...rows].map((row) => row.map(escapeCell).join(';'));
-    const csvContent = '\uFEFF' + csvData.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `smed_${productName.replace(' ', '_')}_${Date.now()}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+      const rows = [
+        ['Stap', 'Fase', 'Activiteit', 'Start (min:sec,msec)', 'Stop (min:sec,msec)', 'Duur (min:sec,msec)'],
+        ...entries.map((entry, index) => [
+          index + 1,
+          entry.phase,
+          entry.step,
+          formatClock(entry.startTime - cycleStart),
+          formatClock(entry.stopTime - cycleStart),
+          formatClock(entry.durationMs),
+        ]),
+      ];
+
+      const sheet = XLSX.utils.aoa_to_sheet(rows);
+      sheet['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 45 }, { wch: 20 }, { wch: 20 }, { wch: 20 }];
+
+      // Tabbladnamen mogen max. 31 tekens en geen / \ ? * [ ] bevatten.
+      const sheetName = `Cyclus ${cycle} - ${cycleProduct}`
+        .replace(/[/\\?*[\]]/g, '')
+        .slice(0, 31);
+
+      XLSX.utils.book_append_sheet(workbook, sheet, sheetName);
+    });
+
+    XLSX.writeFile(workbook, `smed_${Date.now()}.xlsx`);
   };
 
 
@@ -271,12 +283,12 @@ export function FinishScreen({ sessionData, totalTime, productName, operatorSett
 
           {/* Export Button - Small secondary */}
           <button
-            onClick={exportToCSV}
+            onClick={exportToExcel}
             disabled={stepLog.length === 0}
             className="w-full bg-slate-700 hover:bg-slate-800 disabled:bg-gray-300 disabled:text-gray-500 text-white text-sm py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 font-medium"
           >
             <Download className="w-4 h-4" />
-            CSV exporteren ({stepLog.length} stappen)
+            Excel exporteren ({stepLog.length} stappen)
           </button>
 
           {/* Primary: Next Product Button */}
