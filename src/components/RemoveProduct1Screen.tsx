@@ -52,6 +52,7 @@ export function RemoveProduct1Screen({
         title="Product afvoeren"
         subtitle={`${productName}, naar opslag`}
         showTimer
+        timerLabel="Cyclustijd"
         elapsedTime={elapsedTime}
         operatorSettings={operatorSettings}
         onBack={onBack}
