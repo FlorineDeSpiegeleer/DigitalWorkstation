@@ -49,4 +49,3 @@ export function IndustrialHeader({ title, subtitle, showTimer, elapsedTime = 0, 
     </div>
   );
 }
-v
