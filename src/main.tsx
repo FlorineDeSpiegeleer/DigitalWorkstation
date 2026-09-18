@@ -129,7 +129,8 @@ export interface SessionData {
 
 // NIEUW: registratie per stap (voorbereiding + montage) voor de SMED-
 // analyse. Eén rij per stap die de operator effectief doorloopt, met
-// start-/stoptijd en duur. Downloadbaar als CSV via SettingsScreen.
+// start-/stoptijd en duur. Downloadbaar als Excel-bestand (één tabblad
+// per cyclus) via SettingsScreen en het "Omstelling voltooid"-scherm.
 export interface StepLogEntry {
   phase: 'Voorbereiding' | 'Montage';
   product: string;
@@ -137,6 +138,12 @@ export interface StepLogEntry {
   startTime: number;
   stopTime: number;
   durationMs: number;
+  // NIEUW: nummer van de productiecyclus waar deze stap bij hoort. Een
+  // cyclus loopt vanaf het moment dat de omstelling naar een nieuw
+  // product start (na het vorige, goedgekeurde product) tot en met de
+  // eindcontrole van dat nieuwe product. Elke cyclus wordt een apart
+  // tabblad in de Excel-export.
+  cycle: number;
 }
 
 
@@ -2675,6 +2682,20 @@ function OperatorApp({
       savedOperatorState?.stepLog ?? []
     );
 
+  // NIEUW: huidige cyclus (1 = eerste omstelling van de sessie). Gaat
+  // omhoog telkens wanneer een nieuwe omstelling écht van start gaat
+  // (zie de useEffect op currentStep verderop, bij 'changeover-step1').
+  // Zo krijgt elke cyclus — van na het vorige goede product tot en met
+  // de eindcontrole van het huidige — een eigen nummer, en dus straks
+  // een eigen tabblad in de Excel-export.
+  const [
+    cycleNumber,
+    setCycleNumber,
+  ] =
+    useState<number>(
+      savedOperatorState?.cycleNumber ?? 0
+    );
+
   const logStep = (
     phase: StepLogEntry['phase'],
     product: string,
@@ -2693,6 +2714,7 @@ function OperatorApp({
         startTime,
         stopTime,
         durationMs: stopTime - startTime,
+        cycle: cycleNumber,
       },
     ]);
   };
@@ -2766,6 +2788,7 @@ function OperatorApp({
           producedCount,
           stepLog,
           notifications,
+          cycleNumber,
         })
       );
     } catch {
@@ -2787,6 +2810,7 @@ function OperatorApp({
     producedCount,
     stepLog,
     notifications,
+    cycleNumber,
   ]);
 
   useEffect(() => {
@@ -3465,6 +3489,18 @@ function OperatorApp({
         (prev) => prev + 1
       );
 
+      // NIEUW: de volgende cyclus start hier, exact op het moment dat
+      // het huidige product goedgekeurd is — dat IS "het laatste goede
+      // product van deze serie". Alles wat hierna gebeurt (wegzetten,
+      // de omstelling-melding, de omstelling zelf, de montage en de
+      // eindcontrole van het volgende product) hoort dus bij de NIEUWE
+      // cyclus. Enkel de eerste cyclus van de sessie heeft geen
+      // voorafgaande eindcontrole — die start apart (zie de useEffect
+      // op currentStep hieronder, bij changeover-command/-step1).
+      setCycleNumber(
+        (n) => n + 1
+      );
+
       // NIEUW: na de eindcontrole eerst tonen waar het afgewerkte
       // product naartoe moet, pas daarna het Finish-scherm.
       navigateTo(
@@ -3591,6 +3627,8 @@ function OperatorApp({
   const CHANGEOVER_STEP_LABELS: Partial<
     Record<FlowStep, string>
   > = {
+    'deliver-product': 'Product wegzetten',
+    'changeover-command': 'Omstelling melding (werkopdracht)',
     'changeover-step1': 'Werkpost vrijmaken',
     'changeover-step2': 'Mal plaatsen',
     'changeover-step3': 'Onderdelen controleren',
@@ -3604,6 +3642,23 @@ function OperatorApp({
   useEffect(() => {
     const previous = previousStepRef.current;
     const label = CHANGEOVER_STEP_LABELS[previous];
+
+    // NIEUW: de cyclus wordt normaal al opgehoogd in handleFinalQCPass,
+    // exact op het moment dat het VORIGE product goedgekeurd wordt (dat
+    // is "het laatste goede product van de vorige serie"). Enkel de
+    // aller eerste cyclus van een sessie heeft geen voorafgaande
+    // eindcontrole om dat aan op te hangen — die vangen we hier op,
+    // zodra de operator voor het eerst een omstelling start (via het
+    // dashboard of rechtstreeks). De guard cycleNumber === 0 voorkomt
+    // dubbel tellen bij elke volgende cyclus.
+    if (
+      cycleNumber === 0 &&
+      (currentStep === 'changeover-command' ||
+        currentStep === 'changeover-step1') &&
+      previous !== currentStep
+    ) {
+      setCycleNumber((n) => n + 1);
+    }
 
     if (label && previous !== currentStep) {
       logStep(
