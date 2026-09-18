@@ -124,7 +124,7 @@ const PRODUCT2_STEPS: ProductionStep[] = [
   {
     id: 9,
     title: "Plaats en monteer de wielen links",
-    instruction: "Leg de wielen in de voorziene uitsparingen van de mal, bovenop de profielen. De mal positioneert ze automatisch op de juiste plaats. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
+    instruction: "Leg de wielen met rem in de voorziene uitsparingen van de mal, bovenop de profielen. De mal positioneert ze automatisch op de juiste plaats. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
     imageUrl: IMG_WIEL_GEMONTEERD,
     requiresTool: true,
     toolName: 'M3 inbussleutel',
@@ -146,7 +146,7 @@ const PRODUCT2_STEPS: ProductionStep[] = [
   {
     id: 12,
     title: "Plaats en monteer de wielen rechts",
-    instruction: "Leg de wielen in de voorziene uitsparingen van de mal, bovenop de profielen. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
+    instruction: "Leg de wielen met rem in de voorziene uitsparingen van de mal, bovenop de profielen. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
     imageUrl: IMG_WIEL_GEMONTEERD,
     requiresTool: true,
     toolName: 'M3 inbussleutel',
@@ -221,7 +221,7 @@ const PRODUCT1_STEPS: ProductionStep[] = [
   {
     id: 9,
     title: "Plaats en monteer de wielen links",
-    instruction: "Leg de wielen in de voorziene uitsparingen van de mal, bovenop de profielen. De mal positioneert ze automatisch op de juiste plaats. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
+    instruction: "Leg de wielen zonder rem in de voorziene uitsparingen van de mal, bovenop de profielen. De mal positioneert ze automatisch op de juiste plaats. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
     imageUrl: IMG_WIEL_GEMONTEERD,
     requiresTool: true,
     toolName: 'M3 inbussleutel',
@@ -243,7 +243,7 @@ const PRODUCT1_STEPS: ProductionStep[] = [
   {
     id: 12,
     title: "Plaats en monteer de wielen rechts",
-    instruction: "Leg de wielen in de voorziene uitsparingen van de mal, bovenop de profielen. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
+    instruction: "Leg de wielen zonder rem in de voorziene uitsparingen van de mal, bovenop de profielen. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
     imageUrl: IMG_WIEL_GEMONTEERD,
     requiresTool: true,
     toolName: 'M3 inbussleutel',
@@ -313,6 +313,7 @@ export function ProductionStepsScreen({ onComplete, elapsedTime, productName, op
         }
         subtitle={`${productName} assemblage`}
         showTimer
+        timerLabel="Montagetijd"
         elapsedTime={elapsedTime}
         operatorSettings={operatorSettings}
         onBack={handlePrevious}
