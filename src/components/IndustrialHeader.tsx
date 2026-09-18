@@ -5,6 +5,10 @@ interface Props {
   subtitle?: string;
   showTimer?: boolean;
   elapsedTime?: number;
+  // NIEUW: label boven de tijd, want dit is niet altijd de omsteltijd
+  // (bv. tijdens montage of eindcontrole loopt dezelfde teller door,
+  // maar "Omsteltijd" is dan misleidend).
+  timerLabel?: string;
   onBack?: () => void;
   onSettings?: () => void;
   operatorSettings?: {
@@ -14,7 +18,7 @@ interface Props {
   };
 }
 
-export function IndustrialHeader({ title, subtitle, showTimer, elapsedTime = 0, onBack, onSettings, operatorSettings }: Props) {
+export function IndustrialHeader({ title, subtitle, showTimer, elapsedTime = 0, timerLabel = 'Omsteltijd', onBack, onSettings, operatorSettings }: Props) {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -38,10 +42,11 @@ export function IndustrialHeader({ title, subtitle, showTimer, elapsedTime = 0, 
             <p className="text-xs text-gray-400 uppercase tracking-wider">{line} · {station}</p>
             <p className="text-sm text-white mt-1">Operator {operator}</p>
           </div>
-          {showTimer && <div className="bg-slate-700 px-5 py-3 rounded-lg flex items-center gap-3"><Clock className="w-5 h-5 text-gray-300" /><div><p className="text-xs text-gray-400 uppercase">Omsteltijd</p><p className="text-xl font-mono tabular-nums">{formatTime(elapsedTime)}</p></div></div>}
+          {showTimer && <div className="bg-slate-700 px-5 py-3 rounded-lg flex items-center gap-3"><Clock className="w-5 h-5 text-gray-300" /><div><p className="text-xs text-gray-400 uppercase">{timerLabel}</p><p className="text-xl font-mono tabular-nums">{formatTime(elapsedTime)}</p></div></div>}
           {onSettings && <button onClick={onSettings} className="p-2 hover:bg-slate-700 rounded-lg transition-colors" aria-label="Instellingen"><Settings className="w-6 h-6" /></button>}
         </div>
       </div>
     </div>
   );
 }
+v
