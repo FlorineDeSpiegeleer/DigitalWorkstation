@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Save, AlertTriangle, Camera, Send, Phone, Bell, CheckCircle, Clock, XCircle, CalendarClock, Info, Download } from 'lucide-react';
+import { Save, AlertTriangle, Camera, Send, Phone, CheckCircle, Clock, XCircle, CalendarClock, Info, Download } from 'lucide-react';
 import { IndustrialHeader } from './IndustrialHeader';
 import { OperatorSettings, PlannedChangeover, StepLogEntry, NTFY_EVENTS_TOPIC } from '../main';
 
@@ -16,6 +16,14 @@ interface Props {
   // NIEUW: log van elke doorlopen voorbereidings-/montagestap, voor de
   // SMED-analyse. Downloadbaar als CSV.
   stepLog?: StepLogEntry[];
+  // NIEUW: notificatie-instellingen leven nu in de operator-app zelf
+  // (bewaard + gebruikt om echte meldingen te tonen), niet meer lokaal
+  // hier.
+  notifications: { changeover: boolean; quality: boolean; teamleader: boolean };
+  onNotificationsChange: (next: { changeover: boolean; quality: boolean; teamleader: boolean }) => void;
+  // Toont een melding bovenaan het scherm, maar enkel als de operator
+  // "Teamleader-updates" heeft aangevinkt.
+  onTeamleaderAction: (message: string) => void;
 }
 
 interface Incident {
@@ -34,29 +42,40 @@ export function SettingsScreen({
   currentStep = 'Product afvoeren',
   plannedChangeovers = [],
   stepLog = [],
+  notifications,
+  onNotificationsChange,
+  onTeamleaderAction,
 }: Props) {
   const [settings, setSettings] = useState(operatorSettings);
 
   // NIEUW: CSV-export van het stepLog (voorbereiding + montage), klaar
-  // voor de SMED-analyse. "Verspilling"/"waardetoevoeging" komen later
-  // apart bij, dit levert enkel de ruwe tijdsregistratie per stap.
-  const downloadStepLogCsv = () => {
-    const header = [
-      'Fase',
-      'Product',
-      'Stap',
-      'Starttijd',
-      'Stoptijd',
-      'Duur (s)',
-    ];
+  // voor de SMED-analyse. Zelfde formaat als op het "Omstelling
+  // voltooid"-scherm (Stap/Fase/Activiteit/Start/Stop/Duur, relatief
+  // t.o.v. het begin van de sessie, in min:sec,msec), zodat een export
+  // hier en daar altijd identiek is.
+  const formatClock = (ms: number) => {
+    const totalMs = Math.max(0, Math.round(ms));
+    const minutes = Math.floor(totalMs / 60000);
+    const seconds = Math.floor((totalMs % 60000) / 1000);
+    const millis = totalMs % 1000;
+    return `${minutes}:${String(seconds).padStart(2, '0')},${String(millis).padStart(3, '0')}`;
+  };
 
-    const rows = stepLog.map((entry) => [
+  const downloadStepLogCsv = () => {
+    const sessionStart =
+      stepLog.length > 0
+        ? Math.min(...stepLog.map((entry) => entry.startTime))
+        : 0;
+
+    const header = ['Stap', 'Fase', 'Activiteit', 'Start (min:sec,msec)', 'Stop (min:sec,msec)', 'Duur (min:sec,msec)'];
+
+    const rows = stepLog.map((entry, index) => [
+      String(index + 1),
       entry.phase,
-      entry.product,
       entry.step,
-      new Date(entry.startTime).toLocaleString('nl-BE'),
-      new Date(entry.stopTime).toLocaleString('nl-BE'),
-      (entry.durationMs / 1000).toFixed(1),
+      formatClock(entry.startTime - sessionStart),
+      formatClock(entry.stopTime - sessionStart),
+      formatClock(entry.durationMs),
     ]);
 
     const escapeCell = (cell: string) =>
@@ -95,13 +114,6 @@ export function SettingsScreen({
 
   // Team leader contact
   const [showQuickMessages, setShowQuickMessages] = useState(false);
-
-  // Notifications
-  const [notifications, setNotifications] = useState({
-    changeover: true,
-    quality: true,
-    teamleader: false,
-  });
 
   // Recent incidents
   const [incidents, setIncidents] = useState<Incident[]>([
@@ -158,7 +170,7 @@ export function SettingsScreen({
   };
 
   const handleQuickMessage = (message: string) => {
-    alert(`Bericht verzonden naar teamleader: "${message}"`);
+    onTeamleaderAction(`Bericht verzonden naar teamleader: "${message}"`);
     setShowQuickMessages(false);
 
     // NIEUW: publiceer dit bericht live naar de Manager-pagina.
@@ -179,7 +191,7 @@ export function SettingsScreen({
   };
 
   const handleCallTeamleader = () => {
-    alert('Teamleader wordt gebeld...');
+    onTeamleaderAction('Teamleader wordt gebeld...');
 
     // NIEUW: publiceer deze oproep live naar de Manager-pagina.
     fetch(`https://ntfy.sh/${NTFY_EVENTS_TOPIC}`, {
@@ -535,7 +547,7 @@ export function SettingsScreen({
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-700">Omstelmeldingen</span>
                   <button
-                    onClick={() => setNotifications({ ...notifications, changeover: !notifications.changeover })}
+                    onClick={() => onNotificationsChange({ ...notifications, changeover: !notifications.changeover })}
                     className={`w-12 h-6 rounded-full transition-colors relative ${
                       notifications.changeover ? 'bg-blue-500' : 'bg-gray-300'
                     }`}
@@ -551,7 +563,7 @@ export function SettingsScreen({
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-700">Kwaliteitswaarschuwingen</span>
                   <button
-                    onClick={() => setNotifications({ ...notifications, quality: !notifications.quality })}
+                    onClick={() => onNotificationsChange({ ...notifications, quality: !notifications.quality })}
                     className={`w-12 h-6 rounded-full transition-colors relative ${
                       notifications.quality ? 'bg-blue-500' : 'bg-gray-300'
                     }`}
@@ -567,7 +579,7 @@ export function SettingsScreen({
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-700">Teamleader-updates</span>
                   <button
-                    onClick={() => setNotifications({ ...notifications, teamleader: !notifications.teamleader })}
+                    onClick={() => onNotificationsChange({ ...notifications, teamleader: !notifications.teamleader })}
                     className={`w-12 h-6 rounded-full transition-colors relative ${
                       notifications.teamleader ? 'bg-blue-500' : 'bg-gray-300'
                     }`}
