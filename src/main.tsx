@@ -4,17 +4,11 @@ import {
   ArrowLeft,
   Boxes,
   Check,
-  ChevronRight,
-  CircleAlert,
-  ClipboardCheck,
   Home,
   Loader2,
   LogOut,
-  Package,
-  RefreshCw,
   Route,
   ScanLine,
-  Trash2,
 } from 'lucide-react';
 
 
@@ -2512,7 +2506,7 @@ function OperatorApp({
   ] =
     useState<FlowStep>(
       savedOperatorState?.currentStep ??
-        'product1-approved'
+        'main-dashboard'
     );
 
   const [
@@ -2600,7 +2594,7 @@ function OperatorApp({
     // anders werkte "terug" niet vanuit Instellingen bij een verse sessie.
     useState<FlowStep[]>(
       savedOperatorState?.navigationHistory ?? [
-        'product1-approved',
+        'main-dashboard',
       ]
     );
 
@@ -2703,6 +2697,51 @@ function OperatorApp({
     ]);
   };
 
+  // NIEUW: notificatie-instellingen verhuisd van SettingsScreen naar hier,
+  // zodat ze 1) bewaard blijven (localStorage) en 2) écht ergens invloed
+  // op hebben — zie showToast en de aanroepen ervan verderop.
+  const [
+    notifications,
+    setNotifications,
+  ] = useState(
+    savedOperatorState?.notifications ?? {
+      changeover: true,
+      quality: true,
+      teamleader: false,
+    }
+  );
+
+  // NIEUW: kleine melding bovenaan het scherm, automatisch verdwijnend.
+  // Wordt enkel getoond als de bijhorende notificatie-instelling aanstaat.
+  const [
+    toast,
+    setToast,
+  ] = useState<{ message: string; tone: 'info' | 'warning' } | null>(null);
+
+  const toastTimeoutRef = useRef<number | null>(null);
+
+  const showToast = (message: string, tone: 'info' | 'warning' = 'info') => {
+    if (toastTimeoutRef.current !== null) {
+      window.clearTimeout(toastTimeoutRef.current);
+    }
+
+    setToast({ message, tone });
+
+    toastTimeoutRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimeoutRef.current = null;
+    }, 5000);
+  };
+
+  // NIEUW: vervangt de vroegere native alert()-popups in SettingsScreen
+  // bij het contacteren van de teamleader. Enkel zichtbaar wanneer de
+  // operator "Teamleader-updates" heeft aangevinkt.
+  const handleTeamleaderAction = (message: string) => {
+    if (notifications.teamleader) {
+      showToast(message);
+    }
+  };
+
   // NIEUW (punt 2): schrijf de belangrijkste sessiestatus telkens terug
   // naar localStorage zodra ze wijzigt. "elapsedTime" en "showWarning"
   // bewust NIET bewaard — die horen bij het huidige moment, niet bij een
@@ -2726,6 +2765,7 @@ function OperatorApp({
           orderQuantity,
           producedCount,
           stepLog,
+          notifications,
         })
       );
     } catch {
@@ -2746,6 +2786,7 @@ function OperatorApp({
     orderQuantity,
     producedCount,
     stepLog,
+    notifications,
   ]);
 
   useEffect(() => {
@@ -2954,6 +2995,12 @@ function OperatorApp({
                 },
               ]
             );
+
+            if (notifications.changeover) {
+              showToast(
+                `Nieuwe omstelling ingepland: ${plan.fromProduct} → ${plan.toProduct}`
+              );
+            }
           }
         } catch {
           // Geen geldig bericht — negeren.
@@ -3355,6 +3402,13 @@ function OperatorApp({
         })
       );
 
+      if (notifications.quality) {
+        showToast(
+          'Kwaliteitswaarschuwing: malcontrole niet geslaagd, controleer de mal.',
+          'warning'
+        );
+      }
+
       if (
         cameraCheckOrigin ===
         'guided'
@@ -3443,6 +3497,13 @@ function OperatorApp({
       addTimestamp(
         'finalQCRejected'
       );
+
+      if (notifications.quality) {
+        showToast(
+          `Kwaliteitswaarschuwing: ${toProduct} afgekeurd bij eindcontrole.`,
+          'warning'
+        );
+      }
 
       navigateTo(
         'reject-product'
@@ -3651,6 +3712,25 @@ function OperatorApp({
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-gray-100">
 
+      {toast && (
+        <div
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] max-w-lg w-[calc(100%-2rem)] px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-3 ${
+            toast.tone === 'warning'
+              ? 'bg-orange-600 text-white'
+              : 'bg-slate-800 text-white'
+          }`}
+        >
+          <span className="flex-1">{toast.message}</span>
+          <button
+            onClick={() => setToast(null)}
+            className="text-white/70 hover:text-white text-lg leading-none flex-shrink-0"
+            aria-label="Melding sluiten"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {currentStep ===
         'product1-approved' && (
 
@@ -3848,6 +3928,9 @@ function OperatorApp({
           elapsedTime={
             elapsedTime
           }
+          toProduct={
+            toProduct
+          }
           operatorSettings={
             operatorSettings
           }
@@ -3868,6 +3951,9 @@ function OperatorApp({
           }
           elapsedTime={
             elapsedTime
+          }
+          toProduct={
+            toProduct
           }
           operatorSettings={
             operatorSettings
@@ -4034,6 +4120,9 @@ function OperatorApp({
           onStartNextCycle={
             handleStartNextCycle
           }
+          stepLog={
+            stepLog
+          }
         />
 
       )}
@@ -4102,6 +4191,15 @@ function OperatorApp({
               stepLog={
                 stepLog
               }
+              notifications={
+                notifications
+              }
+              onNotificationsChange={
+                setNotifications
+              }
+              onTeamleaderAction={
+                handleTeamleaderAction
+              }
             />
           </div>
 
@@ -4117,6 +4215,9 @@ function OperatorApp({
           }
           onCameraCheck={
             handleWarningCameraCheck
+          }
+          toProduct={
+            toProduct
           }
         />
 
@@ -4795,14 +4896,20 @@ function ManagerApp({
                         <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${typeColor}`}>
                           {typeLabel}
                         </span>
-                        <span className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold capitalize">
-                          {entry.source}
-                        </span>
+                        {entry.operatorName ? (
+                          <span className="text-xs font-bold text-slate-700">
+                            {entry.operatorName}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold capitalize">
+                            {entry.source}
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-slate-800">{entry.message}</p>
-                      {(entry.operatorName || entry.line) && (
+                      {(entry.line || entry.station) && (
                         <p className="text-xs text-slate-400 mt-0.5">
-                          {[entry.operatorName, entry.line, entry.station].filter(Boolean).join(' · ')}
+                          {[entry.line, entry.station].filter(Boolean).join(' · ')}
                         </p>
                       )}
                     </div>
@@ -4848,12 +4955,6 @@ const BIN_DATABASE: BinDefinition[] = [
     material: 'M3 bouten',
     pickupLocation: 'Supermarkt A1',
     stationLocation: 'Poka-yoke kast · B1',
-  },
-  {
-    qrCode: 'BIN-M4',
-    material: 'M3 bouten',
-    pickupLocation: 'Supermarkt A2',
-    stationLocation: 'Poka-yoke kast · B2',
   },
   {
     qrCode: 'BIN-M5',
@@ -5159,6 +5260,9 @@ function WaterspiderApp({ onHome }: Props) {
       qrVideoRef.current.srcObject = null;
     }
 
+    // Reset zodat een nieuwe sessie (na STOP/START) weer vers begint.
+    lastDetectedQrRef.current = null;
+
     setScannerActive(false);
   };
 
@@ -5229,16 +5333,19 @@ function WaterspiderApp({ onHome }: Props) {
 
             if (codes?.length) {
               const rawValue = String(codes[0]?.rawValue || '');
-              const now = Date.now();
               const last = lastDetectedQrRef.current;
 
-              if (
-                rawValue &&
-                (!last || last.code !== rawValue || now - last.at > 1800)
-              ) {
+              // Verwerk een code maar één keer zolang hij in beeld blijft.
+              // Enkel wanneer er een ANDERE code gedetecteerd wordt (of de
+              // camera opnieuw start), wordt er weer een nieuwe scan
+              // toegelaten — geen tijd-gebaseerde reset meer, want die
+              // zorgde ervoor dat dezelfde code om de 1,8 seconde opnieuw
+              // verwerkt werd zolang de operator het bakje voor de camera
+              // hield.
+              if (rawValue && (!last || last.code !== rawValue)) {
                 lastDetectedQrRef.current = {
                   code: rawValue,
-                  at: now,
+                  at: Date.now(),
                 };
 
                 acceptQrCode(rawValue);
