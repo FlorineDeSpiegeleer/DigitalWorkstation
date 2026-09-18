@@ -1,6 +1,6 @@
 import { Check, Clock, Download, TrendingUp, ChevronRight } from 'lucide-react';
 import { IndustrialHeader } from './IndustrialHeader';
-import { SessionData } from '../main';
+import { SessionData, StepLogEntry } from '../main';
 
 interface Props {
   sessionData: SessionData;
@@ -14,9 +14,12 @@ interface Props {
   producedCount?: number;
   orderQuantity?: number;
   onStartNextCycle: () => void;
+  // NIEUW: log van elke doorlopen voorbereidings-/montagestap, voor de
+  // SMED-analyse. Dit is wat de CSV-export nu effectief bevat.
+  stepLog?: StepLogEntry[];
 }
 
-export function FinishScreen({ sessionData, totalTime, productName, operatorSettings, producedCount = 0, orderQuantity = 50, onStartNextCycle }: Props) {
+export function FinishScreen({ sessionData, totalTime, productName, operatorSettings, producedCount = 0, orderQuantity = 50, onStartNextCycle, stepLog = [] }: Props) {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -39,30 +42,52 @@ export function FinishScreen({ sessionData, totalTime, productName, operatorSett
     return 'N/A';
   };
 
-  const exportToCSV = () => {
-    const csvData = [
-      ['Metric', 'Value'],
-      ['Product', productName],
-      ['Total Changeover Time', formatTime(totalTime)],
-      ['Guided Changeover Time', calculateChangeoverTime()],
-      ['Assembly Time', calculateAssemblyTime()],
-      ['Final QC Result', sessionData.finalQCPassed ? 'OK' : 'NOK'],
-      ['First-Time-Right', sessionData.firstTimeRight ? 'Yes' : 'No'],
-      ['Timestamp', new Date().toISOString()],
-      ['Operator', operatorSettings.operatorName],
-      ['Line', operatorSettings.line],
-      ['Station', operatorSettings.station],
-    ];
+  // NIEUW: tijdsnotatie zoals in het SMED-registratieblad (min:sec,msec),
+  // bv. 1:23,450 voor 1 minuut, 23 seconden en 450 milliseconden.
+  const formatClock = (ms: number) => {
+    const totalMs = Math.max(0, Math.round(ms));
+    const minutes = Math.floor(totalMs / 60000);
+    const seconds = Math.floor((totalMs % 60000) / 1000);
+    const millis = totalMs % 1000;
+    return `${minutes}:${String(seconds).padStart(2, '0')},${String(millis).padStart(3, '0')}`;
+  };
 
-    const csvContent = csvData.map(row => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+  // NIEUW: exporteert nu de volledige stap-per-stap SMED-registratie
+  // (Stap, Activiteit, Start, Stop, Duur) i.p.v. enkel de samenvatting.
+  // Starttijd van de allereerste stap wordt als "tijdstip 0" genomen,
+  // zodat elke rij relatief ten opzichte van het begin van de sessie
+  // getoond wordt — net als in het handmatige SMED-registratieblad.
+  const exportToCSV = () => {
+    const sessionStart =
+      stepLog.length > 0
+        ? Math.min(...stepLog.map((entry) => entry.startTime))
+        : 0;
+
+    const header = ['Stap', 'Fase', 'Activiteit', 'Start (min:sec,msec)', 'Stop (min:sec,msec)', 'Duur (min:sec,msec)'];
+
+    const rows = stepLog.map((entry, index) => [
+      String(index + 1),
+      entry.phase,
+      entry.step,
+      formatClock(entry.startTime - sessionStart),
+      formatClock(entry.stopTime - sessionStart),
+      formatClock(entry.durationMs),
+    ]);
+
+    const escapeCell = (cell: string) =>
+      /[";\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
+
+    const csvData = [header, ...rows].map((row) => row.map(escapeCell).join(';'));
+    const csvContent = '\uFEFF' + csvData.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `changeover_${productName.replace(' ', '_')}_${Date.now()}.csv`;
+    link.download = `smed_${productName.replace(' ', '_')}_${Date.now()}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
+
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-gray-100 overflow-hidden">
@@ -247,10 +272,11 @@ export function FinishScreen({ sessionData, totalTime, productName, operatorSett
           {/* Export Button - Small secondary */}
           <button
             onClick={exportToCSV}
-            className="w-full bg-slate-700 hover:bg-slate-800 text-white text-sm py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 font-medium"
+            disabled={stepLog.length === 0}
+            className="w-full bg-slate-700 hover:bg-slate-800 disabled:bg-gray-300 disabled:text-gray-500 text-white text-sm py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 font-medium"
           >
             <Download className="w-4 h-4" />
-            CSV exporteren
+            CSV exporteren ({stepLog.length} stappen)
           </button>
 
           {/* Primary: Next Product Button */}
