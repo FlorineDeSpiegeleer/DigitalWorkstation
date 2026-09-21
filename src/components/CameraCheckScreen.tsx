@@ -41,7 +41,6 @@ export function CameraCheckScreen({
   onSettings,
 }: Props) {
   const [state, setState] = useState<CheckState>('waiting');
-  const [webcamAnalysing, setWebcamAnalysing] = useState(false);
   const [webcamError, setWebcamError] = useState('');
 
   // Kleine tijdsmarge tussen telefoon en tablet, zodat een paar seconden
@@ -66,8 +65,10 @@ export function CameraCheckScreen({
     setState(data.status === 'ok' ? 'result-pass' : 'result-fail');
   };
 
-  const handleWebcamPhoto = async (dataUrl: string) => {
-    setWebcamAnalysing(true);
+  // NIEUW: automatische analyse — wordt door WorkstationWebcam zelf
+  // aangeroepen zodra het beeld gestabiliseerd is, geen knop nodig. Het
+  // live camerabeeld blijft gewoon zichtbaar terwijl dit loopt.
+  const handleAnalyseFrame = async (dataUrl: string) => {
     setWebcamError('');
 
     try {
@@ -101,10 +102,9 @@ export function CameraCheckScreen({
       setWebcamError(
         error instanceof Error ? error.message : 'De webcamfoto kon niet worden geanalyseerd.'
       );
-    } finally {
-      setWebcamAnalysing(false);
     }
   };
+
 
   // Lokale fallback wanneer telefoon en tablet in dezelfde browser draaien.
   useEffect(() => {
@@ -166,13 +166,10 @@ export function CameraCheckScreen({
         <div className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:p-10 flex flex-col items-center justify-center text-center">
           {cameraMode === 'webcam' ? (
             <div className="w-full">
-              <WorkstationWebcam onPhotoCaptured={handleWebcamPhoto} />
-              {webcamAnalysing && (
-                <div className="mt-4 rounded-xl bg-blue-50 border border-blue-200 p-4 flex items-center justify-center gap-3 text-blue-800">
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span className="font-bold text-sm">Mal automatisch analyseren…</span>
-                </div>
-              )}
+              <WorkstationWebcam
+                onAnalyseFrame={handleAnalyseFrame}
+                active={state === 'waiting'}
+              />
               {webcamError && (
                 <div className="mt-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm font-medium text-red-700">
                   {webcamError}
