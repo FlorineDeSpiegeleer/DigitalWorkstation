@@ -4,6 +4,7 @@ import { IndustrialHeader } from './IndustrialHeader';
 import { WorkstationWebcam } from './WorkstationWebcam';
 import { CameraMode, NTFY_TOPIC } from '../main';
 import { analyseMalPhoto } from '../lib/malVision';
+import { postNtfyJson } from '../services/ntfy';
 
 interface Props {
   onPass: () => void;
@@ -93,11 +94,9 @@ export function CameraCheckScreen({
         // De lokale beoordeling blijft werken als opslag niet beschikbaar is.
       }
 
-      fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      }).catch(() => {
-        // Internet is niet nodig om de lokale webcamcontrole af te ronden.
+      void postNtfyJson(NTFY_TOPIC, payload, {
+        key: `qc:${payload.context}:${payload.product}`,
+        dedupeMs: 3000,
       });
 
       lastSeenRef.current = payload.timestamp;
