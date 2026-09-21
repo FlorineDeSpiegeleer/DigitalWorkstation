@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, X, Check, ChevronRight } from 'lucide-react';
 import { IndustrialHeader } from './IndustrialHeader';
-import { NTFY_TOPIC } from '../main';
+import { WorkstationWebcam } from './WorkstationWebcam';
+import { CameraMode, NTFY_TOPIC } from '../main';
 
 interface Props {
   onPass: () => void;
@@ -13,6 +14,7 @@ interface Props {
     line: string;
     station: string;
   };
+  cameraMode: CameraMode;
   onBack: () => void;
   onSettings?: () => void;
 }
@@ -33,6 +35,7 @@ export function FinalQCScreen({
   elapsedTime,
   productName,
   operatorSettings,
+  cameraMode,
   onBack,
   onSettings,
 }: Props) {
@@ -104,7 +107,7 @@ export function FinalQCScreen({
     <div className="h-full min-h-0 flex flex-col bg-gray-100 overflow-hidden relative">
       <IndustrialHeader
         title={`${productName}, Eindcontrole`}
-        subtitle="De telefoon opent automatisch de productcontrole"
+        subtitle={cameraMode === 'webcam' ? 'Eindcontrole via vaste webcam' : 'De telefoon opent automatisch de productcontrole'}
         showTimer
         timerLabel="Cyclustijd"
         elapsedTime={elapsedTime}
@@ -114,14 +117,26 @@ export function FinalQCScreen({
       />
 
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-8 max-w-[1280px] mx-auto w-full">
-        <div className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 p-10 flex flex-col items-center justify-center text-center">
-          <Loader2 className="w-16 h-16 text-blue-500 animate-spin mb-6" />
-          <h3 className="text-2xl text-gray-800 font-bold mb-2">
-            Wachten op controlefoto…
-          </h3>
-          <p className="text-gray-500 max-w-sm">
-            Neem de controlefoto van {productName} op de telefoon. Het resultaat verschijnt hier automatisch.
-          </p>
+        <div className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:p-10 flex flex-col items-center justify-center text-center">
+          {cameraMode === 'webcam' ? (
+            <div className="w-full">
+              <div className="mb-5">
+                <h3 className="text-2xl text-gray-800 font-bold mb-2">Eindcontrole met webcam</h3>
+                <p className="text-gray-500">Neem een vaste controlefoto van {productName}.</p>
+              </div>
+              <WorkstationWebcam />
+            </div>
+          ) : (
+            <>
+              <Loader2 className="w-16 h-16 text-blue-500 animate-spin mb-6" />
+              <h3 className="text-2xl text-gray-800 font-bold mb-2">
+                Wachten op controlefoto…
+              </h3>
+              <p className="text-gray-500 max-w-sm">
+                Neem de controlefoto van {productName} op de telefoon. Het resultaat verschijnt hier automatisch.
+              </p>
+            </>
+          )}
         </div>
       </div>
 
