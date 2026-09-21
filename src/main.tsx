@@ -29,6 +29,7 @@ import { RejectProductScreen } from './components/RejectProductScreen';
 import { FinishScreen } from './components/FinishScreen';
 import { WarningModal } from './components/WarningModal';
 import { SettingsScreen } from './components/SettingsScreen';
+import { ProductCalibrationScreen } from './components/ProductCalibrationScreen';
 
 /* ============================================================
    TYPES
@@ -66,7 +67,8 @@ export type FlowStep =
   | 'deliver-product'
   | 'reject-product'
   | 'finish'
-  | 'settings';
+  | 'settings'
+  | 'calibration';
 
 export type ChangeoverDirection =
   | 'P1_TO_P2'
@@ -3628,6 +3630,13 @@ function OperatorApp({
       );
     };
 
+  const handleOpenCalibration =
+    () => {
+      navigateTo(
+        'calibration'
+      );
+    };
+
   const handleSaveSettings =
     (
       settings:
@@ -3702,18 +3711,19 @@ function OperatorApp({
   useEffect(() => {
     const previous = previousStepRef.current;
 
-    // 'settings' is een overlay die vanaf elk scherm geopend kan worden
-    // en weer teruggaat naar datzelfde scherm. Zolang we NAAR settings
-    // gaan, loggen we niets — de klok blijft gewoon staan waar hij
-    // stond, zodat de tijd in settings straks vanzelf meetelt bij de
-    // stap waarin je zat (geen apart "instellingen"-rijtje, geen gat).
+    // 'settings' en 'calibration' zijn overlays die vanaf elk scherm
+    // geopend kunnen worden en weer teruggaan naar datzelfde scherm.
+    // Zolang we ERNAARTOE gaan, loggen we niets — de klok blijft gewoon
+    // staan waar hij stond, zodat die tijd straks vanzelf meetelt bij de
+    // stap waarin je zat (geen apart rijtje, geen gat).
     // 'production' hoeft geen aparte behandeling: dat scherm staat
     // sowieso niet in STEP_TIMELINE_LABELS (montage wordt per stap
     // apart gelogd via handleMontageStepLog), dus de generieke
     // label-check hieronder slaat het vanzelf al over.
     if (
       previous !== currentStep &&
-      currentStep !== 'settings'
+      currentStep !== 'settings' &&
+      currentStep !== 'calibration'
     ) {
       const label = STEP_TIMELINE_LABELS[previous];
 
@@ -3809,6 +3819,9 @@ function OperatorApp({
 
         settings:
           'Instellingen',
+
+        calibration:
+          'Kalibratie eindcontrole',
       };
 
       return (
@@ -4158,6 +4171,9 @@ function OperatorApp({
           onSettings={
             handleOpenSettings
           }
+          onOpenCalibration={
+            handleOpenCalibration
+          }
         />
 
       )}
@@ -4317,10 +4333,25 @@ function OperatorApp({
               onTeamleaderAction={
                 handleTeamleaderAction
               }
+              onOpenCalibration={
+                handleOpenCalibration
+              }
             />
           </div>
 
         </div>
+
+      )}
+
+      {currentStep ===
+        'calibration' && (
+
+        <ProductCalibrationScreen
+          operatorSettings={
+            operatorSettings
+          }
+          onBack={goBack}
+        />
 
       )}
 
@@ -4633,6 +4664,7 @@ function ManagerApp({
     'reject-product': 'Afgekeurd product afvoeren',
     finish: 'Voltooid',
     settings: 'Instellingen',
+    calibration: 'Kalibratie eindcontrole',
   };
 
   return (
