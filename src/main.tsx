@@ -114,6 +114,22 @@ export const NTFY_CHANGEOVER_TOPIC =
 export const NTFY_EVENTS_TOPIC =
   `${NTFY_TOPIC}-events`;
 
+// Camerakeuze voor deze fysieke werkpost. Zowel Operator als Manager
+// gebruiken dezelfde instelling, zodat een rolwissel op hetzelfde toestel
+// de gekozen camera behoudt.
+export type CameraMode = 'phone' | 'webcam';
+export const CAMERA_MODE_STORAGE_KEY = 'sirris_camera_mode_v1';
+
+export const readCameraMode = (): CameraMode => {
+  try {
+    return localStorage.getItem(CAMERA_MODE_STORAGE_KEY) === 'webcam'
+      ? 'webcam'
+      : 'phone';
+  } catch {
+    return 'phone';
+  }
+};
+
 // NIEUW: echte productfoto's (assemblage), gedeeld over meerdere
 // schermen (nieuwe productieopdracht, dashboard, eerste scherm, product
 // afvoeren, product afleveren) zodat er telkens de juiste foto van het
@@ -2508,6 +2524,16 @@ function OperatorApp({
     }
   })();
 
+  const [cameraMode, setCameraMode] = useState<CameraMode>(() => readCameraMode());
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CAMERA_MODE_STORAGE_KEY, cameraMode);
+    } catch {
+      // Opslag niet beschikbaar: keuze blijft geldig voor deze sessie.
+    }
+  }, [cameraMode]);
+
   const [
     direction,
     setDirection,
@@ -4072,6 +4098,7 @@ function OperatorApp({
           operatorSettings={
             operatorSettings
           }
+          cameraMode={cameraMode}
           onBack={goBack}
           onSettings={
             handleOpenSettings
@@ -4126,6 +4153,7 @@ function OperatorApp({
           operatorSettings={
             operatorSettings
           }
+          cameraMode={cameraMode}
           onBack={goBack}
           onSettings={
             handleOpenSettings
@@ -4262,6 +4290,8 @@ function OperatorApp({
               operatorSettings={
                 operatorSettings
               }
+              cameraMode={cameraMode}
+              onCameraModeChange={setCameraMode}
               onSave={
                 handleSaveSettings
               }
@@ -4372,6 +4402,16 @@ function ManagerApp({
       return null;
     }
   })();
+
+  const [cameraMode, setCameraMode] = useState<CameraMode>(() => readCameraMode());
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CAMERA_MODE_STORAGE_KEY, cameraMode);
+    } catch {
+      // Opslag niet beschikbaar: keuze blijft geldig voor deze sessie.
+    }
+  }, [cameraMode]);
 
   const [operatorStatuses, setOperatorStatuses] =
     useState<Record<string, DeviceStatus>>(
@@ -4613,6 +4653,45 @@ function ManagerApp({
       </header>
 
       <main className="p-5 md:p-8 max-w-[1400px] mx-auto space-y-6">
+        {/* INSTELLINGEN WERKPOST */}
+        <section className="bg-white rounded-2xl p-6 shadow-lg">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.18em] text-violet-600 font-bold mb-1">
+                Instellingen werkpost
+              </p>
+              <h3 className="text-lg font-bold text-slate-900">Camera voor controles</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                Gebruikt voor zowel de malcontrole als de eindcontrole op dit toestel.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-xl min-w-[280px]">
+              <button
+                type="button"
+                onClick={() => setCameraMode('phone')}
+                className={`px-4 py-3 rounded-lg text-sm font-bold transition-colors ${
+                  cameraMode === 'phone'
+                    ? 'bg-white text-violet-700 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Telefoon
+              </button>
+              <button
+                type="button"
+                onClick={() => setCameraMode('webcam')}
+                className={`px-4 py-3 rounded-lg text-sm font-bold transition-colors ${
+                  cameraMode === 'webcam'
+                    ? 'bg-white text-violet-700 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Webcam
+              </button>
+            </div>
+          </div>
+        </section>
+
         {/* LIVE STATUS */}
 
         {/* NIEUW: Operator-werkposten — nu één kaart per lijn/werkpost
