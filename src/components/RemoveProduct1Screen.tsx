@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MapPin, ChevronRight } from 'lucide-react';
 import { IndustrialHeader } from './IndustrialHeader';
+import { IMG_PRODUCT1, IMG_PRODUCT2 } from '../main';
 
 interface Props {
   onComplete: () => void;
@@ -67,7 +68,7 @@ export function RemoveProduct1Screen({
             </h2>
 
             <ImageWithFallback
-              src="https://images.unsplash.com/photo-1714650601435-67a4d51a0798?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixlib=rb-4.1.0&q=80&w=1080"
+              src={productName === 'Product 1' ? IMG_PRODUCT1 : IMG_PRODUCT2}
               alt="Opslaglocatie"
               className="w-full flex-1 min-h-[500px] object-cover rounded-lg"
             />
