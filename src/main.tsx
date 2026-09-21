@@ -5161,6 +5161,11 @@ function WaterspiderApp({ onHome }: Props) {
   const [scannedBins, setScannedBins] = useState<string[]>(
     savedState?.scannedBins ?? []
   );
+  // Houd ook een ref bij. De QR-scanner draait in een requestAnimationFrame-loop
+  // en zou anders een oude versie van scannedBins kunnen blijven gebruiken.
+  // Met deze ref wordt een QR-code onmiddellijk geblokkeerd zodra hij één keer
+  // succesvol gescand is, ook als React de state nog niet opnieuw gerenderd heeft.
+  const scannedBinsRef = useRef<string[]>(savedState?.scannedBins ?? []);
 
   const [profileCounts, setProfileCounts] = useState<Record<string, number>>(
     savedState?.profileCounts ?? {}
@@ -5367,12 +5372,16 @@ function WaterspiderApp({ onHome }: Props) {
     }
 
     // MAXIMUM 1 per QR-code per werkpostbezoek.
-    if (scannedBins.includes(qrCode)) {
+    // Gebruik de ref in plaats van de mogelijk verouderde state uit de
+    // requestAnimationFrame-closure. Zo kan dezelfde code nooit twee keer
+    // toegevoegd worden, ook niet wanneer scans zeer snel na elkaar gebeuren.
+    if (scannedBinsRef.current.includes(qrCode)) {
       setScannerMessage(`Al gescand: ${bin.material}`);
       return false;
     }
 
-    setScannedBins((prev) => [...prev, qrCode]);
+    scannedBinsRef.current = [...scannedBinsRef.current, qrCode];
+    setScannedBins(scannedBinsRef.current);
     setScannerMessage(`✓ ${bin.material}`);
     return true;
   };
@@ -5456,6 +5465,7 @@ function WaterspiderApp({ onHome }: Props) {
 
   const resetVisit = () => {
     stopQrScanner();
+    scannedBinsRef.current = [];
     setScannedBins([]);
     setProfileCounts({});
     setPickupChecks({});
@@ -5622,10 +5632,6 @@ function WaterspiderApp({ onHome }: Props) {
         />
 
         <main className="flex-1 min-h-0 p-2.5 flex flex-col justify-center">
-          <div className="w-full aspect-[4/3] rounded-xl bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 text-[11px] font-medium mb-3">
-            Foto van de bakken
-          </div>
-
           <div className="text-center mb-3">
             <Boxes className="w-10 h-10 mx-auto text-amber-600 mb-2" />
             <h2 className="text-[18px] font-black text-slate-900">
