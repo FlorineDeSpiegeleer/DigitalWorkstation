@@ -58,7 +58,7 @@ export function Product1ApprovedScreen({
             <ImageWithFallback
               src={productName === 'Product 1' ? IMG_PRODUCT1 : IMG_PRODUCT2}
               alt={productName}
-              className="w-full h-full min-h-[520px] object-cover rounded-lg border-4 border-green-500"
+              className="w-full h-full min-h-[520px] object-contain rounded-lg border-4 border-green-500 bg-gray-50"
             />
           </section>
 
