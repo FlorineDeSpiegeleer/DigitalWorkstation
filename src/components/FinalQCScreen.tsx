@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, X, Check, ChevronRight } from 'lucide-react';
+import { Loader2, X, Check, ChevronRight, Camera as CameraIcon } from 'lucide-react';
 import { IndustrialHeader } from './IndustrialHeader';
 import { WorkstationWebcam } from './WorkstationWebcam';
 import { CameraMode, NTFY_TOPIC } from '../main';
+import {
+  analyseProductPhoto,
+  hasReferenceImage,
+  type ProductVisionResult,
+} from '../lib/productVision';
 
 interface Props {
   onPass: () => void;
@@ -17,6 +22,9 @@ interface Props {
   cameraMode: CameraMode;
   onBack: () => void;
   onSettings?: () => void;
+  // NIEUW: laat de operator, als er nog geen referentiefoto is, meteen
+  // doorklikken naar het kalibratiescherm in plaats van vast te lopen.
+  onOpenCalibration?: () => void;
 }
 
 type QCState = 'waiting' | 'result-pass' | 'result-fail';
@@ -38,8 +46,11 @@ export function FinalQCScreen({
   cameraMode,
   onBack,
   onSettings,
+  onOpenCalibration,
 }: Props) {
   const [state, setState] = useState<QCState>('waiting');
+  const [webcamError, setWebcamError] = useState('');
+  const [visionResult, setVisionResult] = useState<ProductVisionResult | null>(null);
 
   // Kleine tijdsmarge tussen telefoon en tablet.
   const lastSeenRef = useRef<number>(Date.now() - 10000);
@@ -47,41 +58,49 @@ export function FinalQCScreen({
   const expectedProduct =
     productName === 'Product 2' ? 'product2' : 'product1';
 
-  // NIEUW: eindcontrole via webcam heeft (nog) geen echte beeldanalyse
-  // zoals de malcontrole — er is geen vaste referentiekleur om op te
-  // controleren voor het volledige, afgewerkte product. Deze functie
-  // simuleert het wel realistisch: de foto wordt automatisch genomen
-  // (WorkstationWebcam), en na een korte "analyseren"-fase (nog zichtbaar
-  // in het live camerabeeld) volgt automatisch een geslaagd resultaat —
-  // exact hetzelfde resultaatformaat als de telefooncontrole, zodat de
-  // kwaliteitslog bij de manager gewoon blijft werken. Zodra er een echte
-  // productanalyse is, vervang je enkel de inhoud van deze functie.
-  const handleAnalyseFrame = async (_dataUrl: string) => {
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+  const referenceMissing =
+    cameraMode === 'webcam' && !hasReferenceImage(expectedProduct);
 
-    const payload: CheckResult = {
-      product: expectedProduct,
-      status: 'ok',
-      percentage: 0,
-      context: 'final-qc',
-      timestamp: Date.now(),
-    };
+  // NIEUW: echte productcontrole — vergelijkt de automatisch genomen foto
+  // met de referentiefoto die de operator zelf vastlegde in het
+  // kalibratiescherm (zie ProductCalibrationScreen / lib/productVision).
+  // Geen vaste pixelcoördinaten in de code: verplaats je de camera, dan
+  // herkalibreer je gewoon opnieuw via Instellingen.
+  const handleAnalyseFrame = async (dataUrl: string) => {
+    setWebcamError('');
 
     try {
-      localStorage.setItem('camera_check_result', JSON.stringify(payload));
-    } catch {
-      // De lokale beoordeling blijft werken als opslag niet beschikbaar is.
+      const result = await analyseProductPhoto(dataUrl, expectedProduct);
+      setVisionResult(result);
+
+      const payload: CheckResult = {
+        product: expectedProduct,
+        status: result.status,
+        percentage: result.overallDiffPercent,
+        context: 'final-qc',
+        timestamp: Date.now(),
+      };
+
+      try {
+        localStorage.setItem('camera_check_result', JSON.stringify(payload));
+      } catch {
+        // De lokale beoordeling blijft werken als opslag niet beschikbaar is.
+      }
+
+      fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }).catch(() => {
+        // Internet is niet nodig om de lokale webcamcontrole af te ronden.
+      });
+
+      lastSeenRef.current = payload.timestamp;
+      setState(result.status === 'ok' ? 'result-pass' : 'result-fail');
+    } catch (error) {
+      setWebcamError(
+        error instanceof Error ? error.message : 'De foto kon niet worden geanalyseerd.'
+      );
     }
-
-    fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }).catch(() => {
-      // Internet is niet nodig om de lokale webcamcontrole af te ronden.
-    });
-
-    lastSeenRef.current = payload.timestamp;
-    setState('result-pass');
   };
 
   const handleResult = (data: CheckResult) => {
@@ -97,6 +116,7 @@ export function FinalQCScreen({
     lastSeenRef.current = data.timestamp;
     setState(data.status === 'ok' ? 'result-pass' : 'result-fail');
   };
+
 
   useEffect(() => {
     if (state !== 'waiting') return;
@@ -163,10 +183,39 @@ export function FinalQCScreen({
                   Er wordt automatisch een controlefoto van {productName} genomen.
                 </p>
               </div>
-              <WorkstationWebcam
-                onAnalyseFrame={handleAnalyseFrame}
-                active={state === 'waiting'}
-              />
+
+              {referenceMissing ? (
+                <div className="rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 p-8 text-center">
+                  <CameraIcon className="w-10 h-10 mx-auto mb-3 text-amber-600" />
+                  <p className="font-bold text-amber-800 mb-1">
+                    Nog geen referentiefoto ingesteld voor {productName}
+                  </p>
+                  <p className="text-sm text-amber-700 mb-4">
+                    Leg eerst een referentiefoto vast in Instellingen &gt; Kalibratie voor deze
+                    controle automatisch kan werken.
+                  </p>
+                  {onOpenCalibration && (
+                    <button
+                      onClick={onOpenCalibration}
+                      className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg px-5 py-2.5 text-sm font-bold"
+                    >
+                      Naar kalibratie
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <WorkstationWebcam
+                    onAnalyseFrame={handleAnalyseFrame}
+                    active={state === 'waiting'}
+                  />
+                  {webcamError && (
+                    <div className="mt-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm font-medium text-red-700">
+                      {webcamError}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           ) : (
             <>
@@ -221,6 +270,16 @@ export function FinalQCScreen({
                   ? 'Geen afwijkingen gedetecteerd. Het product kan worden vrijgegeven.'
                   : 'Breng het afgekeurde product naar de voorziene afkeurlocatie.'}
               </p>
+
+              {state === 'result-fail' && visionResult && visionResult.worstRegions.length > 0 && (
+                <div className="mt-3 text-xs text-red-600 font-medium space-y-1">
+                  {visionResult.worstRegions.map((region) => (
+                    <p key={region.label}>
+                      Afwijking {region.label}: {region.diffPercent.toFixed(1)}%
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="p-5">
