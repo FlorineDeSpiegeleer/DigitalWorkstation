@@ -1,25 +1,53 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, RefreshCw, Video, VideoOff } from 'lucide-react';
+import { Loader2, Video, VideoOff, RefreshCw } from 'lucide-react';
 
 interface Props {
-  onPhotoCaptured?: (dataUrl: string) => void;
+  // Krijgt een dataURL van het automatisch genomen beeld en voert de
+  // analyse uit. Zolang deze niet resolvet, blijft het live beeld gewoon
+  // zichtbaar met een "analyseren"-balk eroverheen.
+  onAnalyseFrame: (dataUrl: string) => Promise<void>;
+  // Of er nog een (nieuwe) automatische opname mag gebeuren. Op false
+  // zetten (bv. zodra er een resultaat binnen is) stopt verdere opnames.
+  active: boolean;
+  // Hoe lang wachten na het live worden van de camera vóór de eerste
+  // automatische opname — geeft de camera de tijd om scherp te stellen.
+  stabiliseMs?: number;
 }
 
-export function WorkstationWebcam({ onPhotoCaptured }: Props) {
+// Naam zoals de browser de Logitech C270 typisch rapporteert. Wordt enkel
+// gebruikt om, als er toevallig meerdere camera's beschikbaar zijn (bv.
+// een ingebouwde laptopcam naast de gemonteerde C270), automatisch de
+// juiste te kiezen — geen probleem als hij niet gevonden wordt, dan blijft
+// gewoon de standaardcamera actief.
+const PREFERRED_CAMERA_PATTERN = /c270/i;
+
+export function WorkstationWebcam({ onAnalyseFrame, active, stabiliseMs = 1200 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const capturedRef = useRef(false);
   const [status, setStatus] = useState<'starting' | 'live' | 'error'>('starting');
   const [errorMessage, setErrorMessage] = useState('');
+  const [analysing, setAnalysing] = useState(false);
 
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
   };
 
+  const findPreferredDeviceId = async (): Promise<string | undefined> => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      return devices.find(
+        (d) => d.kind === 'videoinput' && PREFERRED_CAMERA_PATTERN.test(d.label)
+      )?.deviceId;
+    } catch {
+      return undefined;
+    }
+  };
+
   const startCamera = async () => {
     stopCamera();
-    setPhotoUrl(null);
+    capturedRef.current = false;
     setStatus('starting');
     setErrorMessage('');
 
@@ -28,15 +56,29 @@ export function WorkstationWebcam({ onPhotoCaptured }: Props) {
         throw new Error('Deze browser ondersteunt geen cameratoegang.');
       }
 
-      // Geen facingMode forceren: op een pc kiest de browser zo de USB-
-      // webcam, en op iPad kan Safari een beschikbare externe camera kiezen.
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
+      // Eerste, generieke aanvraag: nodig omdat de browser pas na een
+      // toegestane aanvraag de echte cameranamen (labels) prijsgeeft.
+      let stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1920 }, height: { ideal: 1080 } },
         audio: false,
       });
+
+      // Staat de Logitech C270 er ook bij, en is dit niet toevallig al de
+      // gekozen camera? Wissel er dan expliciet naar over.
+      const preferredId = await findPreferredDeviceId();
+      const activeId = stream.getVideoTracks()[0]?.getSettings().deviceId;
+
+      if (preferredId && preferredId !== activeId) {
+        stream.getTracks().forEach((track) => track.stop());
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            deviceId: { exact: preferredId },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+          audio: false,
+        });
+      }
 
       streamRef.current = stream;
       if (videoRef.current) {
@@ -45,7 +87,8 @@ export function WorkstationWebcam({ onPhotoCaptured }: Props) {
       }
       setStatus('live');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Camera kon niet geopend worden.';
+      const message =
+        error instanceof Error ? error.message : 'Camera kon niet geopend worden.';
       setErrorMessage(message);
       setStatus('error');
     }
@@ -54,97 +97,98 @@ export function WorkstationWebcam({ onPhotoCaptured }: Props) {
   useEffect(() => {
     void startCamera();
     return () => stopCamera();
-    // Alleen starten bij mount; herstarten gebeurt bewust via de knop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const capturePhoto = () => {
-    const video = videoRef.current;
-    if (!video || video.videoWidth === 0 || video.videoHeight === 0) return;
+  // Automatische opname: zodra de camera live is (en nog niets is
+  // vastgelegd), wachten we even zodat het beeld kan scherpstellen, en
+  // nemen we dan zelf een beeld — geen knop nodig. Het live beeld blijft
+  // gewoon op het scherm staan terwijl onAnalyseFrame verwerkt wordt.
+  useEffect(() => {
+    if (status !== 'live' || !active || capturedRef.current) return;
 
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const context = canvas.getContext('2d');
-    if (!context) return;
+    const timeout = window.setTimeout(async () => {
+      const video = videoRef.current;
+      if (!video || video.videoWidth === 0 || video.videoHeight === 0) return;
 
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
-    setPhotoUrl(dataUrl);
-    onPhotoCaptured?.(dataUrl);
-    stopCamera();
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+
+      capturedRef.current = true;
+      setAnalysing(true);
+      try {
+        await onAnalyseFrame(dataUrl);
+      } finally {
+        setAnalysing(false);
+      }
+    }, stabiliseMs);
+
+    return () => window.clearTimeout(timeout);
+  }, [status, active, stabiliseMs, onAnalyseFrame]);
+
+  // Laat een nieuwe automatische ronde toe, bv. na een afkeuring die de
+  // operator wil herstellen en opnieuw wil laten controleren.
+  const retry = () => {
+    capturedRef.current = false;
+    void startCamera();
   };
 
   return (
     <div className="w-full max-w-4xl mx-auto">
       <div className="relative overflow-hidden rounded-2xl bg-slate-950 border border-slate-800 aspect-video flex items-center justify-center">
-        {!photoUrl && (
-          <video
-            ref={videoRef}
-            playsInline
-            muted
-            autoPlay
-            className={`w-full h-full object-contain ${status === 'live' ? 'block' : 'hidden'}`}
-          />
-        )}
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          autoPlay
+          className={`w-full h-full object-contain ${status === 'live' ? 'block' : 'hidden'}`}
+        />
 
-        {photoUrl && (
-          <img src={photoUrl} alt="Controlefoto webcam" className="w-full h-full object-contain" />
-        )}
-
-        {status === 'starting' && !photoUrl && (
+        {status === 'starting' && (
           <div className="text-center text-white p-8">
             <Video className="w-12 h-12 mx-auto mb-3 text-blue-400 animate-pulse" />
             <p className="font-bold">Webcam openen…</p>
-            <p className="text-sm text-slate-400 mt-1">Sta cameratoegang toe wanneer de browser dit vraagt.</p>
+            <p className="text-sm text-slate-400 mt-1">
+              Sta cameratoegang toe wanneer de browser dit vraagt.
+            </p>
           </div>
         )}
 
-        {status === 'error' && !photoUrl && (
+        {status === 'error' && (
           <div className="text-center text-white p-8 max-w-lg">
             <VideoOff className="w-12 h-12 mx-auto mb-3 text-red-400" />
             <p className="font-bold">Webcam niet beschikbaar</p>
             <p className="text-sm text-slate-400 mt-2">{errorMessage}</p>
+            <button
+              type="button"
+              onClick={retry}
+              className="mt-4 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-xl px-5 py-2.5 font-bold text-sm inline-flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Opnieuw proberen
+            </button>
+          </div>
+        )}
+
+        {status === 'live' && active && (
+          <div className="absolute inset-x-0 bottom-0 bg-black/70 backdrop-blur-sm px-4 py-3 flex items-center justify-center gap-3 text-white">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span className="text-sm font-bold">
+              {analysing ? 'Beeld wordt geanalyseerd…' : 'Klaarmaken voor automatische opname…'}
+            </span>
           </div>
         )}
 
         <div className="absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-sm">
-          {photoUrl ? 'FOTO GENOMEN' : status === 'live' ? '● WEBCAM LIVE' : 'WEBCAM'}
+          {status === 'live' ? '● WEBCAM LIVE' : 'WEBCAM'}
         </div>
       </div>
-
-      <div className="mt-4 flex flex-wrap justify-center gap-3">
-        {status === 'live' && !photoUrl && (
-          <button
-            type="button"
-            onClick={capturePhoto}
-            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6 py-3 font-bold flex items-center gap-2"
-          >
-            <Camera className="w-5 h-5" />
-            Foto nemen
-          </button>
-        )}
-
-        {(photoUrl || status === 'error') && (
-          <button
-            type="button"
-            onClick={() => void startCamera()}
-            className="bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-xl px-6 py-3 font-bold flex items-center gap-2"
-          >
-            <RefreshCw className="w-5 h-5" />
-            {photoUrl ? 'Foto opnieuw nemen' : 'Opnieuw proberen'}
-          </button>
-        )}
-      </div>
-
-      {photoUrl && (
-        <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
-          <p className="text-sm font-bold text-amber-900">Webcamfoto klaar voor beeldanalyse</p>
-          <p className="text-xs text-amber-700 mt-1">
-            De camera-opname werkt. Automatisch OK/NOK wordt apart gekoppeld aan de visioncontrole.
-          </p>
-        </div>
-      )}
     </div>
   );
 }
