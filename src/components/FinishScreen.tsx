@@ -60,6 +60,14 @@ export function FinishScreen({ sessionData, totalTime, productName, operatorSett
   // vorige goede product tot en met de eindcontrole van het huidige
   // product (zie cycle in main.tsx). Binnen elk tabblad zijn de
   // tijden relatief t.o.v. het begin van DIE cyclus.
+  // NIEUW: echte datum + uur van start en stop, naast de relatieve tijd.
+  const formatDateTime = (ms: number) => {
+    const d = new Date(ms);
+    const date = d.toLocaleDateString('nl-BE');
+    const time = d.toLocaleTimeString('nl-BE', { hour12: false });
+    return { date, time };
+  };
+
   const exportToExcel = () => {
     const cycles = Array.from(new Set(stepLog.map((entry) => entry.cycle))).sort(
       (a, b) => a - b
@@ -75,19 +83,28 @@ export function FinishScreen({ sessionData, totalTime, productName, operatorSett
       const cycleProduct = entries[0]?.product ?? '';
 
       const rows = [
-        ['Stap', 'Fase', 'Activiteit', 'Start (min:sec,msec)', 'Stop (min:sec,msec)', 'Duur (min:sec,msec)'],
-        ...entries.map((entry, index) => [
-          index + 1,
-          entry.phase,
-          entry.step,
-          formatClock(entry.startTime - cycleStart),
-          formatClock(entry.stopTime - cycleStart),
-          formatClock(entry.durationMs),
-        ]),
+        ['Stap', 'Fase', 'Activiteit', 'Startdatum', 'Starttijd', 'Stopdatum', 'Stoptijd', 'Start (min:sec,msec)', 'Stop (min:sec,msec)', 'Duur (min:sec,msec)'],
+        ...entries.map((entry, index) => {
+          const start = formatDateTime(entry.startTime);
+          const stop = formatDateTime(entry.stopTime);
+
+          return [
+            index + 1,
+            entry.phase,
+            entry.step,
+            start.date,
+            start.time,
+            stop.date,
+            stop.time,
+            formatClock(entry.startTime - cycleStart),
+            formatClock(entry.stopTime - cycleStart),
+            formatClock(entry.durationMs),
+          ];
+        }),
       ];
 
       const sheet = XLSX.utils.aoa_to_sheet(rows);
-      sheet['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 45 }, { wch: 20 }, { wch: 20 }, { wch: 20 }];
+      sheet['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 45 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 20 }];
 
       // Tabbladnamen mogen max. 31 tekens en geen / \ ? * [ ] bevatten.
       const sheetName = `Cyclus ${cycle} - ${cycleProduct}`
