@@ -1037,40 +1037,25 @@ function CameraApp({
         }
       );
 
-      // NIEUW: malcontrole (na plaatsen mal) → Malcontrole-scherm.
-      // Eindcontrole van het afgewerkt product → Productcontrole-scherm
-      // (nog een placeholder met enkel camera, geen automatische
-      // analyse — dat volgt later via computer vision).
-      if (
-        status.currentStep ===
-        'camera-check'
-      ) {
-        setLastKnownContext(
-          'camera-check'
-        );
-
-        if (
-          checkMode ===
-          'waiting'
-        ) {
-          setCheckMode('mal');
-        }
-      } else if (
-        status.currentStep ===
-        'final-qc'
-      ) {
-        setLastKnownContext(
-          'final-qc'
-        );
-
-        if (
-          checkMode ===
-          'waiting'
-        ) {
-          setCheckMode(
-            'product'
-          );
-        }
+      // De actuele Operator-stap is hier leidend. Dit is bewust NIET
+      // meer afhankelijk van checkMode === 'waiting'. Anders kon de
+      // telefoon na een vorige eindcontrole in 'product' blijven staan
+      // en bij de volgende omstelling ten onrechte opnieuw naar de
+      // productcontrole gaan. Zolang er geen foto/analyse bezig is
+      // (bovenaan al afgevangen), mag een nieuw Operator-statusbericht
+      // de cameramodus dus altijd corrigeren.
+      if (status.currentStep === 'camera-check') {
+        setLastKnownContext('camera-check');
+        setCheckMode('mal');
+      } else if (status.currentStep === 'final-qc') {
+        setLastKnownContext('final-qc');
+        setCheckMode('product');
+      } else {
+        // Buiten een controlemoment hoort de telefoon gewoon te wachten.
+        // Zo kan een oude final-qc-status nooit blijven hangen tot aan
+        // de volgende productwissel.
+        setLastKnownContext(null);
+        setCheckMode('waiting');
       }
     };
 
@@ -2893,110 +2878,66 @@ function OperatorApp({
     currentStep,
   ]);
 
-  // Publiceer de operator-status onmiddellijk én daarna periodiek.
-  // Daardoor krijgt de Manager ook opnieuw een actuele status na een refresh,
-  // tijdelijke netwerkonderbreking of wanneer de Manager later wordt geopend.
+  // Publiceer de actuele Operator-status onmiddellijk bij elke wijziging
+  // EN daarna als korte heartbeat. Daardoor blijven zowel Manager als
+  // Camera correct gesynchroniseerd, ook wanneer één van die schermen
+  // pas later wordt geopend of kort de verbinding verliest.
   useEffect(() => {
     const publishOperatorStatus = () => {
       const currentFromProduct =
-        direction === 'P1_TO_P2'
-          ? 'Product 1'
-          : 'Product 2';
-
+        direction === 'P1_TO_P2' ? 'Product 1' : 'Product 2';
       const currentToProduct =
-        direction === 'P1_TO_P2'
-          ? 'Product 2'
-          : 'Product 1';
+        direction === 'P1_TO_P2' ? 'Product 2' : 'Product 1';
 
-      fetch(
-        `https://ntfy.sh/${NTFY_STATUS_TOPIC}`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            source: 'operator',
-            currentStep,
-            fromProduct: currentFromProduct,
-            toProduct: currentToProduct,
-            operatorName: operatorSettings.operatorName,
-            line: operatorSettings.line,
-            station: operatorSettings.station,
-            timestamp: Date.now(),
-          }),
-        }
-      ).catch(() => {
+      fetch(`https://ntfy.sh/${NTFY_STATUS_TOPIC}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          source: 'operator',
+          currentStep,
+          fromProduct: currentFromProduct,
+          toProduct: currentToProduct,
+          operatorName: operatorSettings.operatorName,
+          line: operatorSettings.line,
+          station: operatorSettings.station,
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {
         // Geen internet — bij de volgende heartbeat wordt opnieuw geprobeerd.
       });
     };
 
     publishOperatorStatus();
-
-    // Heartbeat: de Manager krijgt minstens om de 8 seconden een verse status.
-    const heartbeat = window.setInterval(
-      publishOperatorStatus,
-      8000
-    );
+    const heartbeat = window.setInterval(publishOperatorStatus, 5000);
 
     return () => window.clearInterval(heartbeat);
-  }, [
-    currentStep,
-    direction,
-    operatorSettings,
-  ]);
+  }, [currentStep, direction, operatorSettings]);
 
-  // Luister live mee op omstellingen die de Manager publiceert.
-  // Bij het openen halen we ook heel recente berichten op. Zo wordt een
-  // opdracht niet gemist wanneer de Operator net na het versturen opent of
-  // herlaadt. De timestamp van het laatst verwerkte bericht wordt lokaal
-  // bewaard zodat dezelfde opdracht niet dubbel wordt toegevoegd.
+  // Luister naar omstellingen die de Manager publiceert. Bij het openen
+  // halen we ook de meest recente opdracht van de voorbije 2 minuten op.
+  // Een timestamp wordt lokaal onthouden zodat dezelfde opdracht na een
+  // refresh niet nogmaals uitgevoerd wordt.
   useEffect(() => {
     let es: EventSource | null = null;
     let cancelled = false;
-
-    const LAST_CHANGEOVER_MESSAGE_KEY =
-      'sirris_last_changeover_message_timestamp_v1';
-
-    const getLastHandledTimestamp = () => {
-      try {
-        return Number(
-          localStorage.getItem(LAST_CHANGEOVER_MESSAGE_KEY) || '0'
-        );
-      } catch {
-        return 0;
-      }
-    };
-
-    const rememberHandledTimestamp = (timestamp: number) => {
-      try {
-        localStorage.setItem(
-          LAST_CHANGEOVER_MESSAGE_KEY,
-          String(timestamp)
-        );
-      } catch {
-        // Zonder localStorage blijft de live communicatie werken.
-      }
-    };
+    const handledKey = 'sirris_last_handled_changeover_v1';
+    let lastHandledTimestamp = Number(localStorage.getItem(handledKey) || 0);
 
     const handlePlan = (plan: any) => {
-      if (!plan) return;
+      const planTimestamp = Number(plan?.timestamp || 0);
+      if (!planTimestamp || planTimestamp <= lastHandledTimestamp) return;
 
-      const messageTimestamp = Number(plan.timestamp || 0);
-      const lastHandledTimestamp = getLastHandledTimestamp();
-
-      if (
-        messageTimestamp > 0 &&
-        messageTimestamp <= lastHandledTimestamp
-      ) {
-        return;
+      lastHandledTimestamp = planTimestamp;
+      try {
+        localStorage.setItem(handledKey, String(planTimestamp));
+      } catch {
+        // Zonder localStorage werkt live communicatie nog steeds.
       }
 
       if (plan.trigger === 'now') {
         const newDirection: ChangeoverDirection =
-          plan.toProduct === 'Product 2'
-            ? 'P1_TO_P2'
-            : 'P2_TO_P1';
+          plan.toProduct === 'Product 2' ? 'P1_TO_P2' : 'P2_TO_P1';
 
         setDirection(newDirection);
-
         setSessionData({
           changeoverCompleted: false,
           cameraCheckPassed: false,
@@ -3006,15 +2947,11 @@ function OperatorApp({
           changeoverStartTime: Date.now(),
           timestamps: {},
         });
-
         setElapsedTime(0);
         setChangeoverTrigger('now');
         setProducedCount(0);
         setOrderQuantity(plan.quantity || 50);
-        setNavigationHistory([
-          'main-dashboard',
-          'changeover-command',
-        ]);
+        setNavigationHistory(['main-dashboard', 'changeover-command']);
         setCurrentStep('changeover-command');
       } else {
         setPlannedChangeovers((prev) => [
@@ -3032,64 +2969,47 @@ function OperatorApp({
         ]);
 
         if (notifications.changeover) {
-          showToast(
-            `Nieuwe omstelling ingepland: ${plan.fromProduct} → ${plan.toProduct}`
-          );
+          showToast(`Nieuwe omstelling ingepland: ${plan.fromProduct} → ${plan.toProduct}`);
         }
-      }
-
-      if (messageTimestamp > 0) {
-        rememberHandledTimestamp(messageTimestamp);
       }
     };
 
-    // Korte inhaalslag. Alleen recente opdrachten worden opgehaald zodat een
-    // oude 'Wissel nu'-opdracht niet opnieuw gestart wordt.
-    fetch(
-      `https://ntfy.sh/${NTFY_CHANGEOVER_TOPIC}/json?poll=1&since=1m`
-    )
+    // Korte inhaalslag voor het geval de Manager net vóór een refresh of
+    // vóór het openen van de Operator een opdracht verstuurde.
+    fetch(`https://ntfy.sh/${NTFY_CHANGEOVER_TOPIC}/json?poll=1&since=2m`)
       .then((res) => res.text())
       .then((text) => {
         if (cancelled) return;
-
-        const lines = text
-          .trim()
-          .split('\n')
-          .filter(Boolean);
-
-        for (const line of lines) {
+        const plans: any[] = [];
+        for (const line of text.trim().split('\n').filter(Boolean)) {
           try {
             const envelope = JSON.parse(line);
             if (!envelope?.message) continue;
-            const plan = JSON.parse(envelope.message);
-            handlePlan(plan);
+            plans.push(JSON.parse(envelope.message));
           } catch {
             // Ongeldig oud bericht — overslaan.
           }
         }
+        plans.sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+        for (const plan of plans) handlePlan(plan);
       })
       .catch(() => {
-        // De live listener hieronder blijft wel werken.
+        // Live SSE hieronder blijft ook zonder inhaalslag proberen.
       });
 
     try {
-      es = new EventSource(
-        `https://ntfy.sh/${NTFY_CHANGEOVER_TOPIC}/sse`
-      );
-
+      es = new EventSource(`https://ntfy.sh/${NTFY_CHANGEOVER_TOPIC}/sse`);
       es.onmessage = (event) => {
         try {
           const envelope = JSON.parse(event.data);
           if (!envelope?.message) return;
-          const plan = JSON.parse(envelope.message);
-          handlePlan(plan);
+          handlePlan(JSON.parse(envelope.message));
         } catch {
           // Geen geldig bericht — negeren.
         }
       };
     } catch {
-      // ntfy.sh niet bereikbaar — de operator ontvangt dan tijdelijk geen
-      // Manager-planning.
+      // ntfy.sh niet bereikbaar — de operator ontvangt tijdelijk geen planning.
     }
 
     return () => {
@@ -4529,35 +4449,27 @@ function ManagerApp({
     plannedChangeoverLog,
   ]);
 
-  // Live status van Operator + Waterspider.
-  // Bij het openen van de Manager halen we eerst recente ntfy-statussen op.
-  // Zo is de Manager niet afhankelijk van een statusbericht dat toevallig pas
-  // NA het openen van deze pagina wordt verstuurd. Daarna blijft SSE live volgen.
+  // Live status van Operator + Waterspider. Bij het openen halen we
+  // eerst recente statusberichten op en daarna luisteren we live verder.
+  // Daardoor toont de Manager niet meer "geen status" enkel omdat de
+  // Operator zijn laatste stap net vóór het openen van de Manager stuurde.
   useEffect(() => {
     let es: EventSource | null = null;
     let cancelled = false;
 
-    const applyDeviceStatus = (data: DeviceStatus) => {
+    const handleDeviceStatus = (data: DeviceStatus) => {
       if (data.source === 'operator') {
         const key = `${data.line || '?'}::${data.station || '?'}`;
         setOperatorStatuses((prev) => {
-          const previous = prev[key];
-          if (
-            previous?.timestamp &&
-            data.timestamp &&
-            previous.timestamp > data.timestamp
-          ) {
+          const existing = prev[key];
+          if (existing?.timestamp && data.timestamp && existing.timestamp > data.timestamp) {
             return prev;
           }
           return { ...prev, [key]: data };
         });
       } else if (data.source === 'waterspider') {
         setWaterspiderStatus((prev) => {
-          if (
-            prev?.timestamp &&
-            data.timestamp &&
-            prev.timestamp > data.timestamp
-          ) {
+          if (prev?.timestamp && data.timestamp && prev.timestamp > data.timestamp) {
             return prev;
           }
           return data;
@@ -4565,30 +4477,23 @@ function ManagerApp({
       }
     };
 
-    // Inhaalslag: ntfy geeft recente berichten als newline-delimited JSON terug.
-    fetch(`https://ntfy.sh/${NTFY_STATUS_TOPIC}/json?poll=1&since=2h`)
+    fetch(`https://ntfy.sh/${NTFY_STATUS_TOPIC}/json?poll=1&since=10m`)
       .then((res) => res.text())
       .then((text) => {
         if (cancelled) return;
-
-        const lines = text
-          .trim()
-          .split('\n')
-          .filter(Boolean);
-
+        const lines = text.trim().split('\n').filter(Boolean);
         for (const line of lines) {
           try {
             const envelope = JSON.parse(line);
             if (!envelope?.message) continue;
-            const data: DeviceStatus = JSON.parse(envelope.message);
-            applyDeviceStatus(data);
+            handleDeviceStatus(JSON.parse(envelope.message));
           } catch {
             // Ongeldig oud bericht — overslaan.
           }
         }
       })
       .catch(() => {
-        // Poll mislukt: de live SSE-listener hieronder blijft wel werken.
+        // Inhaalslag niet beschikbaar; live SSE hieronder blijft werken.
       });
 
     try {
@@ -4597,8 +4502,7 @@ function ManagerApp({
         try {
           const envelope = JSON.parse(event.data);
           if (!envelope?.message) return;
-          const data: DeviceStatus = JSON.parse(envelope.message);
-          applyDeviceStatus(data);
+          handleDeviceStatus(JSON.parse(envelope.message));
         } catch {
           // Geen geldig bericht — negeren.
         }
@@ -6239,3 +6143,4 @@ function WaterspiderApp({ onHome }: Props) {
     </div>
   );
 }
+
