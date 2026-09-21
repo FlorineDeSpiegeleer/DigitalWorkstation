@@ -70,7 +70,7 @@ export function RemoveProduct1Screen({
             <ImageWithFallback
               src={productName === 'Product 1' ? IMG_PRODUCT1 : IMG_PRODUCT2}
               alt="Opslaglocatie"
-              className="w-full flex-1 min-h-[500px] object-cover rounded-lg"
+              className="w-full flex-1 min-h-[500px] object-contain rounded-lg bg-gray-50"
             />
           </section>
 
