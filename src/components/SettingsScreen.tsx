@@ -1,11 +1,13 @@
 import { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { Save, AlertTriangle, Camera, Send, Phone, CheckCircle, Clock, XCircle, CalendarClock, Info, Download } from 'lucide-react';
+import { Save, AlertTriangle, Camera, Send, Phone, Monitor, CheckCircle, Clock, XCircle, CalendarClock, Info, Download } from 'lucide-react';
 import { IndustrialHeader } from './IndustrialHeader';
-import { OperatorSettings, PlannedChangeover, StepLogEntry, NTFY_EVENTS_TOPIC } from '../main';
+import { CameraMode, OperatorSettings, PlannedChangeover, StepLogEntry, NTFY_EVENTS_TOPIC } from '../main';
 
 interface Props {
   operatorSettings: OperatorSettings;
+  cameraMode: CameraMode;
+  onCameraModeChange: (mode: CameraMode) => void;
   onSave: (settings: OperatorSettings) => void;
   onBack: () => void;
   currentProduct?: string;
@@ -37,6 +39,8 @@ interface Incident {
 
 export function SettingsScreen({
   operatorSettings,
+  cameraMode,
+  onCameraModeChange,
   onSave,
   onBack,
   currentProduct = 'Product 2',
@@ -332,6 +336,46 @@ export function SettingsScreen({
                 <Save className="w-4 h-4" />
                 Instellingen opslaan
               </button>
+            </div>
+
+            {/* Camera Settings */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+              <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-2 font-medium">
+                Camera voor controles
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Kies welke camera wordt gebruikt voor zowel de malcontrole als de eindcontrole.
+              </p>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => onCameraModeChange('phone')}
+                  className={`rounded-xl border-2 p-4 text-left transition-colors ${
+                    cameraMode === 'phone'
+                      ? 'border-blue-500 bg-blue-50 text-blue-800'
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <Phone className="w-5 h-5 mb-2" />
+                  <span className="block font-bold text-sm">Telefoon</span>
+                  <span className="block text-xs mt-1 opacity-75">Bestaande mobiele cameraflow</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onCameraModeChange('webcam')}
+                  className={`rounded-xl border-2 p-4 text-left transition-colors ${
+                    cameraMode === 'webcam'
+                      ? 'border-blue-500 bg-blue-50 text-blue-800'
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <Monitor className="w-5 h-5 mb-2" />
+                  <span className="block font-bold text-sm">Webcam</span>
+                  <span className="block text-xs mt-1 opacity-75">Vaste camera aan de werkpost</span>
+                </button>
+              </div>
             </div>
 
             {/* Problem Reporting */}
