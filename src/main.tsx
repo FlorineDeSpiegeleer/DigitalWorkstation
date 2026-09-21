@@ -2893,201 +2893,209 @@ function OperatorApp({
     currentStep,
   ]);
 
-  // NIEUW: publiceer periodiek de operator-status naar ntfy.sh zodat de
-  // Manager-pagina live kan meekijken, ook op een apart fysiek toestel.
+  // Publiceer de operator-status onmiddellijk én daarna periodiek.
+  // Daardoor krijgt de Manager ook opnieuw een actuele status na een refresh,
+  // tijdelijke netwerkonderbreking of wanneer de Manager later wordt geopend.
   useEffect(() => {
-    const currentFromProduct =
-      direction === 'P1_TO_P2'
-        ? 'Product 1'
-        : 'Product 2';
+    const publishOperatorStatus = () => {
+      const currentFromProduct =
+        direction === 'P1_TO_P2'
+          ? 'Product 1'
+          : 'Product 2';
 
-    const currentToProduct =
-      direction === 'P1_TO_P2'
-        ? 'Product 2'
-        : 'Product 1';
+      const currentToProduct =
+        direction === 'P1_TO_P2'
+          ? 'Product 2'
+          : 'Product 1';
 
-    fetch(
-      `https://ntfy.sh/${NTFY_STATUS_TOPIC}`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          source: 'operator',
-          currentStep,
-          fromProduct:
-            currentFromProduct,
-          toProduct:
-            currentToProduct,
-          operatorName:
-            operatorSettings.operatorName,
-          line: operatorSettings.line,
-          station:
-            operatorSettings.station,
-          timestamp: Date.now(),
-        }),
-      }
-    ).catch(() => {
-      // Geen internet — de Manager-pagina toont dan gewoon geen live status.
-    });
+      fetch(
+        `https://ntfy.sh/${NTFY_STATUS_TOPIC}`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            source: 'operator',
+            currentStep,
+            fromProduct: currentFromProduct,
+            toProduct: currentToProduct,
+            operatorName: operatorSettings.operatorName,
+            line: operatorSettings.line,
+            station: operatorSettings.station,
+            timestamp: Date.now(),
+          }),
+        }
+      ).catch(() => {
+        // Geen internet — bij de volgende heartbeat wordt opnieuw geprobeerd.
+      });
+    };
+
+    publishOperatorStatus();
+
+    // Heartbeat: de Manager krijgt minstens om de 8 seconden een verse status.
+    const heartbeat = window.setInterval(
+      publishOperatorStatus,
+      8000
+    );
+
+    return () => window.clearInterval(heartbeat);
   }, [
     currentStep,
     direction,
     operatorSettings,
   ]);
 
-  // NIEUW: luister live mee op geplande omstellingen die de Manager
-  // publiceert. Trigger "now" onderbreekt de huidige cyclus meteen; de
-  // andere triggers ("after-current-product" / "scheduled") komen in de
-  // wachtrij (plannedChangeovers) en worden pas verwerkt bij het
-  // volgende product (zie handleStartNextCycle).
+  // Luister live mee op omstellingen die de Manager publiceert.
+  // Bij het openen halen we ook heel recente berichten op. Zo wordt een
+  // opdracht niet gemist wanneer de Operator net na het versturen opent of
+  // herlaadt. De timestamp van het laatst verwerkte bericht wordt lokaal
+  // bewaard zodat dezelfde opdracht niet dubbel wordt toegevoegd.
   useEffect(() => {
-    let es: EventSource | null =
-      null;
+    let es: EventSource | null = null;
+    let cancelled = false;
+
+    const LAST_CHANGEOVER_MESSAGE_KEY =
+      'sirris_last_changeover_message_timestamp_v1';
+
+    const getLastHandledTimestamp = () => {
+      try {
+        return Number(
+          localStorage.getItem(LAST_CHANGEOVER_MESSAGE_KEY) || '0'
+        );
+      } catch {
+        return 0;
+      }
+    };
+
+    const rememberHandledTimestamp = (timestamp: number) => {
+      try {
+        localStorage.setItem(
+          LAST_CHANGEOVER_MESSAGE_KEY,
+          String(timestamp)
+        );
+      } catch {
+        // Zonder localStorage blijft de live communicatie werken.
+      }
+    };
+
+    const handlePlan = (plan: any) => {
+      if (!plan) return;
+
+      const messageTimestamp = Number(plan.timestamp || 0);
+      const lastHandledTimestamp = getLastHandledTimestamp();
+
+      if (
+        messageTimestamp > 0 &&
+        messageTimestamp <= lastHandledTimestamp
+      ) {
+        return;
+      }
+
+      if (plan.trigger === 'now') {
+        const newDirection: ChangeoverDirection =
+          plan.toProduct === 'Product 2'
+            ? 'P1_TO_P2'
+            : 'P2_TO_P1';
+
+        setDirection(newDirection);
+
+        setSessionData({
+          changeoverCompleted: false,
+          cameraCheckPassed: false,
+          product2Assembled: false,
+          finalQCPassed: false,
+          firstTimeRight: true,
+          changeoverStartTime: Date.now(),
+          timestamps: {},
+        });
+
+        setElapsedTime(0);
+        setChangeoverTrigger('now');
+        setProducedCount(0);
+        setOrderQuantity(plan.quantity || 50);
+        setNavigationHistory([
+          'main-dashboard',
+          'changeover-command',
+        ]);
+        setCurrentStep('changeover-command');
+      } else {
+        setPlannedChangeovers((prev) => [
+          ...prev,
+          {
+            fromProduct: plan.fromProduct,
+            toProduct: plan.toProduct,
+            line: plan.line || operatorSettings.line,
+            station: plan.station || operatorSettings.station,
+            plannedDate: plan.plannedDate || '',
+            plannedTime: plan.plannedTime || '',
+            quantity: plan.quantity || 50,
+            status: 'Gepland',
+          },
+        ]);
+
+        if (notifications.changeover) {
+          showToast(
+            `Nieuwe omstelling ingepland: ${plan.fromProduct} → ${plan.toProduct}`
+          );
+        }
+      }
+
+      if (messageTimestamp > 0) {
+        rememberHandledTimestamp(messageTimestamp);
+      }
+    };
+
+    // Korte inhaalslag. Alleen recente opdrachten worden opgehaald zodat een
+    // oude 'Wissel nu'-opdracht niet opnieuw gestart wordt.
+    fetch(
+      `https://ntfy.sh/${NTFY_CHANGEOVER_TOPIC}/json?poll=1&since=1m`
+    )
+      .then((res) => res.text())
+      .then((text) => {
+        if (cancelled) return;
+
+        const lines = text
+          .trim()
+          .split('\n')
+          .filter(Boolean);
+
+        for (const line of lines) {
+          try {
+            const envelope = JSON.parse(line);
+            if (!envelope?.message) continue;
+            const plan = JSON.parse(envelope.message);
+            handlePlan(plan);
+          } catch {
+            // Ongeldig oud bericht — overslaan.
+          }
+        }
+      })
+      .catch(() => {
+        // De live listener hieronder blijft wel werken.
+      });
 
     try {
       es = new EventSource(
         `https://ntfy.sh/${NTFY_CHANGEOVER_TOPIC}/sse`
       );
 
-      es.onmessage = (
-        event
-      ) => {
+      es.onmessage = (event) => {
         try {
-          const envelope =
-            JSON.parse(
-              event.data
-            );
-
-          if (
-            !envelope?.message
-          )
-            return;
-
-          const plan =
-            JSON.parse(
-              envelope.message
-            );
-
-          if (
-            plan.trigger ===
-            'now'
-          ) {
-            const newDirection: ChangeoverDirection =
-              plan.toProduct ===
-              'Product 2'
-                ? 'P1_TO_P2'
-                : 'P2_TO_P1';
-
-            setDirection(
-              newDirection
-            );
-
-            setSessionData({
-              changeoverCompleted:
-                false,
-
-              cameraCheckPassed:
-                false,
-
-              product2Assembled:
-                false,
-
-              finalQCPassed:
-                false,
-
-              firstTimeRight:
-                true,
-
-              changeoverStartTime:
-                Date.now(),
-
-              timestamps: {},
-            });
-
-            setElapsedTime(0);
-
-            setChangeoverTrigger(
-              'now'
-            );
-
-            // NIEUW (punt 5): nieuwe order, teller op 0 en de door de
-            // manager opgegeven hoeveelheid overnemen.
-            setProducedCount(
-              0
-            );
-
-            setOrderQuantity(
-              plan.quantity ||
-                50
-            );
-
-            // AANPASSING: "Wissel nu" toont nu eerst de productwissel-
-            // pagina (felle kleuren, duidelijk een échte omstelling),
-            // niet meteen het dashboard.
-            setNavigationHistory(
-              [
-                'main-dashboard',
-                'changeover-command',
-              ]
-            );
-
-            setCurrentStep(
-              'changeover-command'
-            );
-          } else {
-            setPlannedChangeovers(
-              (prev) => [
-                ...prev,
-
-                {
-                  fromProduct:
-                    plan.fromProduct,
-
-                  toProduct:
-                    plan.toProduct,
-
-                  line:
-                    plan.line ||
-                    operatorSettings.line,
-
-                  station:
-                    plan.station ||
-                    operatorSettings.station,
-
-                  plannedDate:
-                    plan.plannedDate ||
-                    '',
-
-                  plannedTime:
-                    plan.plannedTime ||
-                    '',
-
-                  quantity:
-                    plan.quantity ||
-                    50,
-
-                  status:
-                    'Gepland',
-                },
-              ]
-            );
-
-            if (notifications.changeover) {
-              showToast(
-                `Nieuwe omstelling ingepland: ${plan.fromProduct} → ${plan.toProduct}`
-              );
-            }
-          }
+          const envelope = JSON.parse(event.data);
+          if (!envelope?.message) return;
+          const plan = JSON.parse(envelope.message);
+          handlePlan(plan);
         } catch {
           // Geen geldig bericht — negeren.
         }
       };
     } catch {
-      // ntfy.sh niet bereikbaar — de operator ontvangt dan geen
-      // manager-planning; die blijft in dat geval leeg.
+      // ntfy.sh niet bereikbaar — de operator ontvangt dan tijdelijk geen
+      // Manager-planning.
     }
 
-    return () =>
+    return () => {
+      cancelled = true;
       es?.close();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -4521,9 +4529,68 @@ function ManagerApp({
     plannedChangeoverLog,
   ]);
 
-  // Live status van Operator + Waterspider
+  // Live status van Operator + Waterspider.
+  // Bij het openen van de Manager halen we eerst recente ntfy-statussen op.
+  // Zo is de Manager niet afhankelijk van een statusbericht dat toevallig pas
+  // NA het openen van deze pagina wordt verstuurd. Daarna blijft SSE live volgen.
   useEffect(() => {
     let es: EventSource | null = null;
+    let cancelled = false;
+
+    const applyDeviceStatus = (data: DeviceStatus) => {
+      if (data.source === 'operator') {
+        const key = `${data.line || '?'}::${data.station || '?'}`;
+        setOperatorStatuses((prev) => {
+          const previous = prev[key];
+          if (
+            previous?.timestamp &&
+            data.timestamp &&
+            previous.timestamp > data.timestamp
+          ) {
+            return prev;
+          }
+          return { ...prev, [key]: data };
+        });
+      } else if (data.source === 'waterspider') {
+        setWaterspiderStatus((prev) => {
+          if (
+            prev?.timestamp &&
+            data.timestamp &&
+            prev.timestamp > data.timestamp
+          ) {
+            return prev;
+          }
+          return data;
+        });
+      }
+    };
+
+    // Inhaalslag: ntfy geeft recente berichten als newline-delimited JSON terug.
+    fetch(`https://ntfy.sh/${NTFY_STATUS_TOPIC}/json?poll=1&since=2h`)
+      .then((res) => res.text())
+      .then((text) => {
+        if (cancelled) return;
+
+        const lines = text
+          .trim()
+          .split('\n')
+          .filter(Boolean);
+
+        for (const line of lines) {
+          try {
+            const envelope = JSON.parse(line);
+            if (!envelope?.message) continue;
+            const data: DeviceStatus = JSON.parse(envelope.message);
+            applyDeviceStatus(data);
+          } catch {
+            // Ongeldig oud bericht — overslaan.
+          }
+        }
+      })
+      .catch(() => {
+        // Poll mislukt: de live SSE-listener hieronder blijft wel werken.
+      });
+
     try {
       es = new EventSource(`https://ntfy.sh/${NTFY_STATUS_TOPIC}/sse`);
       es.onmessage = (event) => {
@@ -4531,15 +4598,7 @@ function ManagerApp({
           const envelope = JSON.parse(event.data);
           if (!envelope?.message) return;
           const data: DeviceStatus = JSON.parse(envelope.message);
-          if (data.source === 'operator') {
-            // NIEUW: bijhouden per lijn + werkpost, zodat de manager
-            // meerdere operator-werkposten tegelijk kan zien i.p.v.
-            // enkel de laatst-ontvangen status.
-            const key = `${data.line || '?'}::${data.station || '?'}`;
-            setOperatorStatuses((prev) => ({ ...prev, [key]: data }));
-          } else if (data.source === 'waterspider') {
-            setWaterspiderStatus(data);
-          }
+          applyDeviceStatus(data);
         } catch {
           // Geen geldig bericht — negeren.
         }
@@ -4547,7 +4606,11 @@ function ManagerApp({
     } catch {
       // ntfy.sh niet bereikbaar — geen live status beschikbaar.
     }
-    return () => es?.close();
+
+    return () => {
+      cancelled = true;
+      es?.close();
+    };
   }, []);
 
   // Live meldingen & berichten van Operator + Waterspider (probleem
