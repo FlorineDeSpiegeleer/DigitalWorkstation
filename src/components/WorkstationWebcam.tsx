@@ -29,6 +29,20 @@ export function WorkstationWebcam({ onAnalyseFrame, active, stabiliseMs = 1200 }
   const [errorMessage, setErrorMessage] = useState('');
   const [analysing, setAnalysing] = useState(false);
 
+  // NIEUW (bugfix): onAnalyseFrame krijgt bij elke render van het
+  // bovenliggende scherm een nieuwe functie-referentie mee (heel normaal
+  // in React, bv. omdat de omsteltimer elke seconde meetelt). Stond die
+  // functie rechtstreeks in de dependency-lijst van de opname-timer
+  // hieronder, dan werd die timer bij elke render herstart — waardoor de
+  // automatische opname bijna nooit op tijd (of soms helemaal niet)
+  // gebeurde. Door de laatste versie in een ref te bewaren, blijft de
+  // timer zelf volledig stabiel en loopt hij gewoon de ingestelde
+  // stabiliseMs af, ongeacht hoe vaak de ouder opnieuw rendert.
+  const onAnalyseFrameRef = useRef(onAnalyseFrame);
+  useEffect(() => {
+    onAnalyseFrameRef.current = onAnalyseFrame;
+  }, [onAnalyseFrame]);
+
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
@@ -139,14 +153,19 @@ export function WorkstationWebcam({ onAnalyseFrame, active, stabiliseMs = 1200 }
       capturedRef.current = true;
       setAnalysing(true);
       try {
-        await onAnalyseFrame(dataUrl);
+        await onAnalyseFrameRef.current(dataUrl);
       } finally {
         setAnalysing(false);
       }
     }, stabiliseMs);
 
     return () => window.clearTimeout(timeout);
-  }, [status, active, stabiliseMs, onAnalyseFrame]);
+    // NIEUW (bugfix): onAnalyseFrame bewust NIET in deze dependency-lijst.
+    // De laatste versie ervan wordt via onAnalyseFrameRef gelezen (zie
+    // hierboven), net om te voorkomen dat deze timer bij elke render van
+    // de ouder herstart wordt.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, active, stabiliseMs]);
 
   // Laat een nieuwe automatische ronde toe, bv. na een afkeuring die de
   // operator wil herstellen en opnieuw wil laten controleren.
