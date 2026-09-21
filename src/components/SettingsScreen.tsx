@@ -27,6 +27,9 @@ interface Props {
   // Toont een melding bovenaan het scherm, maar enkel als de operator
   // "Teamleader-updates" heeft aangevinkt.
   onTeamleaderAction: (message: string) => void;
+  // NIEUW: opent het kalibratiescherm waar de operator zelf de
+  // referentiefoto's voor de automatische eindcontrole vastlegt.
+  onOpenCalibration: () => void;
 }
 
 interface Incident {
@@ -50,6 +53,7 @@ export function SettingsScreen({
   notifications,
   onNotificationsChange,
   onTeamleaderAction,
+  onOpenCalibration,
 }: Props) {
   const [settings, setSettings] = useState(operatorSettings);
 
@@ -376,6 +380,22 @@ export function SettingsScreen({
                   <span className="block text-xs mt-1 opacity-75">Vaste camera aan de werkpost</span>
                 </button>
               </div>
+
+              {cameraMode === 'webcam' && (
+                <button
+                  type="button"
+                  onClick={onOpenCalibration}
+                  className="mt-3 w-full rounded-xl border-2 border-dashed border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-800 p-4 text-left transition-colors flex items-center gap-3"
+                >
+                  <Camera className="w-5 h-5 flex-shrink-0" />
+                  <div>
+                    <span className="block font-bold text-sm">Kalibratie eindcontrole</span>
+                    <span className="block text-xs opacity-75">
+                      Referentiefoto's vastleggen voor Product 1 en Product 2
+                    </span>
+                  </div>
+                </button>
+              )}
             </div>
 
             {/* Problem Reporting */}
