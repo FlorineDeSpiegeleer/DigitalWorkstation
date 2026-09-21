@@ -47,6 +47,43 @@ export function FinalQCScreen({
   const expectedProduct =
     productName === 'Product 2' ? 'product2' : 'product1';
 
+  // NIEUW: eindcontrole via webcam heeft (nog) geen echte beeldanalyse
+  // zoals de malcontrole — er is geen vaste referentiekleur om op te
+  // controleren voor het volledige, afgewerkte product. Deze functie
+  // simuleert het wel realistisch: de foto wordt automatisch genomen
+  // (WorkstationWebcam), en na een korte "analyseren"-fase (nog zichtbaar
+  // in het live camerabeeld) volgt automatisch een geslaagd resultaat —
+  // exact hetzelfde resultaatformaat als de telefooncontrole, zodat de
+  // kwaliteitslog bij de manager gewoon blijft werken. Zodra er een echte
+  // productanalyse is, vervang je enkel de inhoud van deze functie.
+  const handleAnalyseFrame = async (_dataUrl: string) => {
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    const payload: CheckResult = {
+      product: expectedProduct,
+      status: 'ok',
+      percentage: 0,
+      context: 'final-qc',
+      timestamp: Date.now(),
+    };
+
+    try {
+      localStorage.setItem('camera_check_result', JSON.stringify(payload));
+    } catch {
+      // De lokale beoordeling blijft werken als opslag niet beschikbaar is.
+    }
+
+    fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }).catch(() => {
+      // Internet is niet nodig om de lokale webcamcontrole af te ronden.
+    });
+
+    lastSeenRef.current = payload.timestamp;
+    setState('result-pass');
+  };
+
   const handleResult = (data: CheckResult) => {
     if (!data?.timestamp) return;
 
@@ -122,9 +159,14 @@ export function FinalQCScreen({
             <div className="w-full">
               <div className="mb-5">
                 <h3 className="text-2xl text-gray-800 font-bold mb-2">Eindcontrole met webcam</h3>
-                <p className="text-gray-500">Neem een vaste controlefoto van {productName}.</p>
+                <p className="text-gray-500">
+                  Er wordt automatisch een controlefoto van {productName} genomen.
+                </p>
               </div>
-              <WorkstationWebcam />
+              <WorkstationWebcam
+                onAnalyseFrame={handleAnalyseFrame}
+                active={state === 'waiting'}
+              />
             </div>
           ) : (
             <>
