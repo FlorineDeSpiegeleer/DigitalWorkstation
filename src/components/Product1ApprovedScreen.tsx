@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Check, ChevronRight } from 'lucide-react';
 import { IndustrialHeader } from './IndustrialHeader';
+import { IMG_PRODUCT1, IMG_PRODUCT2 } from '../main';
 
 interface Props {
   onRelease: () => void;
@@ -55,7 +56,7 @@ export function Product1ApprovedScreen({
         <div className="w-full max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_390px] gap-6 items-stretch">
           <section className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 min-h-[560px]">
             <ImageWithFallback
-              src="https://images.unsplash.com/photo-1717386255773-a456c611dc4e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixlib=rb-4.1.0&q=80&w=1080"
+              src={productName === 'Product 1' ? IMG_PRODUCT1 : IMG_PRODUCT2}
               alt={productName}
               className="w-full h-full min-h-[520px] object-cover rounded-lg border-4 border-green-500"
             />
