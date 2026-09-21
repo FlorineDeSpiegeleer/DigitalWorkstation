@@ -4610,7 +4610,12 @@ function ManagerApp({
   };
 
   const handlePlan = () => {
-    if (planning.fromProduct === planning.toProduct) return;
+    if (planning.fromProduct === planning.toProduct) {
+      // Zou met de fix hierboven niet meer moeten voorkomen, maar als
+      // vangnet: voorheen stopte dit hier stil, zonder enige melding.
+      alert('"Van product" en "naar product" mogen niet hetzelfde zijn.');
+      return;
+    }
 
     const payload = {
       fromProduct: planning.fromProduct,
@@ -4828,7 +4833,19 @@ function ManagerApp({
                   <label className="block text-xs text-gray-600 mb-1 font-medium">Van product</label>
                   <select
                     value={planning.fromProduct}
-                    onChange={(e) => setPlanning({ ...planning, fromProduct: e.target.value })}
+                    onChange={(e) => {
+                      const fromProduct = e.target.value;
+                      // NIEUW (bugfix): er zijn maar 2 producten, dus "naar"
+                      // wordt altijd automatisch het andere product. Zo kan
+                      // "van" en "naar" nooit meer gelijk staan — voorheen
+                      // deed de verstuurknop dan gewoon niets, zonder enige
+                      // melding.
+                      setPlanning({
+                        ...planning,
+                        fromProduct,
+                        toProduct: fromProduct === 'Product 1' ? 'Product 2' : 'Product 1',
+                      });
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-slate-900"
                   >
                     <option>Product 1</option>
@@ -4839,7 +4856,14 @@ function ManagerApp({
                   <label className="block text-xs text-gray-600 mb-1 font-medium">Naar product</label>
                   <select
                     value={planning.toProduct}
-                    onChange={(e) => setPlanning({ ...planning, toProduct: e.target.value })}
+                    onChange={(e) => {
+                      const toProduct = e.target.value;
+                      setPlanning({
+                        ...planning,
+                        toProduct,
+                        fromProduct: toProduct === 'Product 1' ? 'Product 2' : 'Product 1',
+                      });
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-slate-900"
                   >
                     <option>Product 1</option>
