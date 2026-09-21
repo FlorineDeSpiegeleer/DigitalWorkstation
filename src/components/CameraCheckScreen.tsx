@@ -42,6 +42,9 @@ export function CameraCheckScreen({
 }: Props) {
   const [state, setState] = useState<CheckState>('waiting');
   const [webcamError, setWebcamError] = useState('');
+  // NIEUW: percentage van de referentiekleur die nog zichtbaar was, om te
+  // tonen bij een afkeuring — zowel bij de webcam- als de telefooncontrole.
+  const [detectedPercentage, setDetectedPercentage] = useState<number | null>(null);
 
   // Kleine tijdsmarge tussen telefoon en tablet, zodat een paar seconden
   // verschil tussen beide toestelklokken geen geldig resultaat blokkeert.
@@ -62,6 +65,7 @@ export function CameraCheckScreen({
     if (data.timestamp <= lastSeenRef.current) return;
 
     lastSeenRef.current = data.timestamp;
+    setDetectedPercentage(data.percentage);
     setState(data.status === 'ok' ? 'result-pass' : 'result-fail');
   };
 
@@ -97,6 +101,7 @@ export function CameraCheckScreen({
       });
 
       lastSeenRef.current = payload.timestamp;
+      setDetectedPercentage(result.percentage);
       setState(result.status === 'ok' ? 'result-pass' : 'result-fail');
     } catch (error) {
       setWebcamError(
@@ -202,8 +207,8 @@ export function CameraCheckScreen({
               <ol className="text-sm text-blue-700 space-y-2 list-decimal list-inside">
                 <li>Sta cameratoegang toe als de browser dit vraagt.</li>
                 <li>Controleer het live beeld van de werkpost.</li>
-                <li>Druk op <strong>Foto nemen</strong>.</li>
-                <li>Hermaak de foto indien de opstelling niet volledig zichtbaar is.</li>
+                <li>Zorg dat de mal volledig zichtbaar is in beeld.</li>
+                <li>De opname en analyse gebeuren automatisch.</li>
               </ol>
             ) : (
               <ol className="text-sm text-blue-700 space-y-2 list-decimal list-inside">
@@ -286,6 +291,12 @@ export function CameraCheckScreen({
                   ? 'De omstelling is goedgekeurd. Je kan doorgaan.'
                   : 'Corrigeer de mal en voer de controle opnieuw uit.'}
               </p>
+
+              {state === 'result-fail' && detectedPercentage !== null && (
+                <p className="text-xs mt-2 text-red-600 font-medium">
+                  {detectedPercentage.toFixed(1)}% referentiekleur nog zichtbaar in de controlezone.
+                </p>
+              )}
             </div>
 
             <div className="p-5">
