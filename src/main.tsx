@@ -30,6 +30,7 @@ import { FinishScreen } from './components/FinishScreen';
 import { WarningModal } from './components/WarningModal';
 import { SettingsScreen } from './components/SettingsScreen';
 import { ProductCalibrationScreen } from './components/ProductCalibrationScreen';
+import { postNtfyJson } from './services/ntfy';
 
 /* ============================================================
    TYPES
@@ -1037,25 +1038,40 @@ function CameraApp({
         }
       );
 
-      // De actuele Operator-stap is hier leidend. Dit is bewust NIET
-      // meer afhankelijk van checkMode === 'waiting'. Anders kon de
-      // telefoon na een vorige eindcontrole in 'product' blijven staan
-      // en bij de volgende omstelling ten onrechte opnieuw naar de
-      // productcontrole gaan. Zolang er geen foto/analyse bezig is
-      // (bovenaan al afgevangen), mag een nieuw Operator-statusbericht
-      // de cameramodus dus altijd corrigeren.
-      if (status.currentStep === 'camera-check') {
-        setLastKnownContext('camera-check');
-        setCheckMode('mal');
-      } else if (status.currentStep === 'final-qc') {
-        setLastKnownContext('final-qc');
-        setCheckMode('product');
-      } else {
-        // Buiten een controlemoment hoort de telefoon gewoon te wachten.
-        // Zo kan een oude final-qc-status nooit blijven hangen tot aan
-        // de volgende productwissel.
-        setLastKnownContext(null);
-        setCheckMode('waiting');
+      // NIEUW: malcontrole (na plaatsen mal) → Malcontrole-scherm.
+      // Eindcontrole van het afgewerkt product → Productcontrole-scherm
+      // (nog een placeholder met enkel camera, geen automatische
+      // analyse — dat volgt later via computer vision).
+      if (
+        status.currentStep ===
+        'camera-check'
+      ) {
+        setLastKnownContext(
+          'camera-check'
+        );
+
+        if (
+          checkMode ===
+          'waiting'
+        ) {
+          setCheckMode('mal');
+        }
+      } else if (
+        status.currentStep ===
+        'final-qc'
+      ) {
+        setLastKnownContext(
+          'final-qc'
+        );
+
+        if (
+          checkMode ===
+          'waiting'
+        ) {
+          setCheckMode(
+            'product'
+          );
+        }
       }
     };
 
@@ -1205,11 +1221,9 @@ function CameraApp({
         // localStorage fallback mag falen zonder de demo te blokkeren.
       }
 
-      fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      }).catch(() => {
-        // Zonder internet blijft de localStorage fallback bestaan.
+      void postNtfyJson(NTFY_TOPIC, payload, {
+        key: `qc:${payload.context}:${payload.product}`,
+        dedupeMs: 3000,
       });
 
       setLastKnownContext('final-qc');
@@ -1592,23 +1606,20 @@ function CameraApp({
       // Demo blijft werken als localStorage niet beschikbaar is.
     }
 
-    fetch(
-      `https://ntfy.sh/${NTFY_TOPIC}`,
+    void postNtfyJson(
+      NTFY_TOPIC,
       {
-        method: 'POST',
-        body: JSON.stringify({
-          product: activeProduct,
-          status: checkStatus,
-          percentage,
-          context:
-            lastKnownContext,
-          timestamp: Date.now(),
-        }),
+        product: activeProduct,
+        status: checkStatus,
+        percentage,
+        context: lastKnownContext,
+        timestamp: Date.now(),
+      },
+      {
+        key: `qc:${lastKnownContext}:${activeProduct}`,
+        dedupeMs: 3000,
       }
-    ).catch(() => {
-      // Geen internet of ntfy.sh niet bereikbaar — de knoppen op de
-      // tablet blijven dan de enige manier om verder te gaan.
-    });
+    );
 
     if (
       percentage >
@@ -1653,19 +1664,20 @@ function CameraApp({
         // Demo blijft werken als localStorage niet beschikbaar is.
       }
 
-      fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
-        method: 'POST',
-        body: JSON.stringify({
+      void postNtfyJson(
+        NTFY_TOPIC,
+        {
           product: activeProduct,
           status: 'ok',
           percentage: 0,
           context: 'final-qc',
           timestamp: Date.now(),
-        }),
-      }).catch(() => {
-        // Geen internet of ntfy.sh niet bereikbaar — de knoppen op de
-        // tablet blijven dan de enige manier om verder te gaan.
-      });
+        },
+        {
+          key: `qc:final-qc:${activeProduct}`,
+          dedupeMs: 3000,
+        }
+      );
     }, 2000);
   };
 
@@ -2878,144 +2890,204 @@ function OperatorApp({
     currentStep,
   ]);
 
-  // Publiceer de actuele Operator-status onmiddellijk bij elke wijziging
-  // EN daarna als korte heartbeat. Daardoor blijven zowel Manager als
-  // Camera correct gesynchroniseerd, ook wanneer één van die schermen
-  // pas later wordt geopend of kort de verbinding verliest.
+  // Publiceer de operator-status alleen bij een echte statuswijziging.
+  // De helper hieronder begrenst snelle opeenvolgende schermwissels zodat
+  // de publieke ntfy.sh-service niet opnieuw in HTTP 429 terechtkomt.
   useEffect(() => {
-    const publishOperatorStatus = () => {
-      const currentFromProduct =
-        direction === 'P1_TO_P2' ? 'Product 1' : 'Product 2';
-      const currentToProduct =
-        direction === 'P1_TO_P2' ? 'Product 2' : 'Product 1';
+    const currentFromProduct =
+      direction === 'P1_TO_P2'
+        ? 'Product 1'
+        : 'Product 2';
 
-      fetch(`https://ntfy.sh/${NTFY_STATUS_TOPIC}`, {
-        method: 'POST',
-        body: JSON.stringify({
-          source: 'operator',
-          currentStep,
-          fromProduct: currentFromProduct,
-          toProduct: currentToProduct,
-          operatorName: operatorSettings.operatorName,
-          line: operatorSettings.line,
-          station: operatorSettings.station,
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {
-        // Geen internet — bij de volgende heartbeat wordt opnieuw geprobeerd.
-      });
-    };
+    const currentToProduct =
+      direction === 'P1_TO_P2'
+        ? 'Product 2'
+        : 'Product 1';
 
-    publishOperatorStatus();
-    const heartbeat = window.setInterval(publishOperatorStatus, 5000);
+    const isCriticalCameraStep =
+      currentStep === 'camera-check' || currentStep === 'final-qc';
 
-    return () => window.clearInterval(heartbeat);
-  }, [currentStep, direction, operatorSettings]);
+    void postNtfyJson(
+      NTFY_STATUS_TOPIC,
+      {
+        source: 'operator',
+        currentStep,
+        fromProduct: currentFromProduct,
+        toProduct: currentToProduct,
+        operatorName: operatorSettings.operatorName,
+        line: operatorSettings.line,
+        station: operatorSettings.station,
+        timestamp: Date.now(),
+      },
+      {
+        key: 'operator-status',
+        // Normale schermwissels worden samengevoegd. Camera-overgangen
+        // blijven onmiddellijk zodat de telefoon direct naar de juiste
+        // controle springt.
+        minIntervalMs: isCriticalCameraStep ? 0 : 8000,
+        dedupeMs: 5000,
+      }
+    );
+  }, [
+    currentStep,
+    direction,
+    operatorSettings,
+  ]);
 
-  // Luister naar omstellingen die de Manager publiceert. Bij het openen
-  // halen we ook de meest recente opdracht van de voorbije 2 minuten op.
-  // Een timestamp wordt lokaal onthouden zodat dezelfde opdracht na een
-  // refresh niet nogmaals uitgevoerd wordt.
+  // NIEUW: luister live mee op geplande omstellingen die de Manager
+  // publiceert. Trigger "now" onderbreekt de huidige cyclus meteen; de
+  // andere triggers ("after-current-product" / "scheduled") komen in de
+  // wachtrij (plannedChangeovers) en worden pas verwerkt bij het
+  // volgende product (zie handleStartNextCycle).
   useEffect(() => {
-    let es: EventSource | null = null;
-    let cancelled = false;
-    const handledKey = 'sirris_last_handled_changeover_v1';
-    let lastHandledTimestamp = Number(localStorage.getItem(handledKey) || 0);
-
-    const handlePlan = (plan: any) => {
-      const planTimestamp = Number(plan?.timestamp || 0);
-      if (!planTimestamp || planTimestamp <= lastHandledTimestamp) return;
-
-      lastHandledTimestamp = planTimestamp;
-      try {
-        localStorage.setItem(handledKey, String(planTimestamp));
-      } catch {
-        // Zonder localStorage werkt live communicatie nog steeds.
-      }
-
-      if (plan.trigger === 'now') {
-        const newDirection: ChangeoverDirection =
-          plan.toProduct === 'Product 2' ? 'P1_TO_P2' : 'P2_TO_P1';
-
-        setDirection(newDirection);
-        setSessionData({
-          changeoverCompleted: false,
-          cameraCheckPassed: false,
-          product2Assembled: false,
-          finalQCPassed: false,
-          firstTimeRight: true,
-          changeoverStartTime: Date.now(),
-          timestamps: {},
-        });
-        setElapsedTime(0);
-        setChangeoverTrigger('now');
-        setProducedCount(0);
-        setOrderQuantity(plan.quantity || 50);
-        setNavigationHistory(['main-dashboard', 'changeover-command']);
-        setCurrentStep('changeover-command');
-      } else {
-        setPlannedChangeovers((prev) => [
-          ...prev,
-          {
-            fromProduct: plan.fromProduct,
-            toProduct: plan.toProduct,
-            line: plan.line || operatorSettings.line,
-            station: plan.station || operatorSettings.station,
-            plannedDate: plan.plannedDate || '',
-            plannedTime: plan.plannedTime || '',
-            quantity: plan.quantity || 50,
-            status: 'Gepland',
-          },
-        ]);
-
-        if (notifications.changeover) {
-          showToast(`Nieuwe omstelling ingepland: ${plan.fromProduct} → ${plan.toProduct}`);
-        }
-      }
-    };
-
-    // Korte inhaalslag voor het geval de Manager net vóór een refresh of
-    // vóór het openen van de Operator een opdracht verstuurde.
-    fetch(`https://ntfy.sh/${NTFY_CHANGEOVER_TOPIC}/json?poll=1&since=2m`)
-      .then((res) => res.text())
-      .then((text) => {
-        if (cancelled) return;
-        const plans: any[] = [];
-        for (const line of text.trim().split('\n').filter(Boolean)) {
-          try {
-            const envelope = JSON.parse(line);
-            if (!envelope?.message) continue;
-            plans.push(JSON.parse(envelope.message));
-          } catch {
-            // Ongeldig oud bericht — overslaan.
-          }
-        }
-        plans.sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
-        for (const plan of plans) handlePlan(plan);
-      })
-      .catch(() => {
-        // Live SSE hieronder blijft ook zonder inhaalslag proberen.
-      });
+    let es: EventSource | null =
+      null;
 
     try {
-      es = new EventSource(`https://ntfy.sh/${NTFY_CHANGEOVER_TOPIC}/sse`);
-      es.onmessage = (event) => {
+      es = new EventSource(
+        `https://ntfy.sh/${NTFY_CHANGEOVER_TOPIC}/sse`
+      );
+
+      es.onmessage = (
+        event
+      ) => {
         try {
-          const envelope = JSON.parse(event.data);
-          if (!envelope?.message) return;
-          handlePlan(JSON.parse(envelope.message));
+          const envelope =
+            JSON.parse(
+              event.data
+            );
+
+          if (
+            !envelope?.message
+          )
+            return;
+
+          const plan =
+            JSON.parse(
+              envelope.message
+            );
+
+          if (
+            plan.trigger ===
+            'now'
+          ) {
+            const newDirection: ChangeoverDirection =
+              plan.toProduct ===
+              'Product 2'
+                ? 'P1_TO_P2'
+                : 'P2_TO_P1';
+
+            setDirection(
+              newDirection
+            );
+
+            setSessionData({
+              changeoverCompleted:
+                false,
+
+              cameraCheckPassed:
+                false,
+
+              product2Assembled:
+                false,
+
+              finalQCPassed:
+                false,
+
+              firstTimeRight:
+                true,
+
+              changeoverStartTime:
+                Date.now(),
+
+              timestamps: {},
+            });
+
+            setElapsedTime(0);
+
+            setChangeoverTrigger(
+              'now'
+            );
+
+            // NIEUW (punt 5): nieuwe order, teller op 0 en de door de
+            // manager opgegeven hoeveelheid overnemen.
+            setProducedCount(
+              0
+            );
+
+            setOrderQuantity(
+              plan.quantity ||
+                50
+            );
+
+            // AANPASSING: "Wissel nu" toont nu eerst de productwissel-
+            // pagina (felle kleuren, duidelijk een échte omstelling),
+            // niet meteen het dashboard.
+            setNavigationHistory(
+              [
+                'main-dashboard',
+                'changeover-command',
+              ]
+            );
+
+            setCurrentStep(
+              'changeover-command'
+            );
+          } else {
+            setPlannedChangeovers(
+              (prev) => [
+                ...prev,
+
+                {
+                  fromProduct:
+                    plan.fromProduct,
+
+                  toProduct:
+                    plan.toProduct,
+
+                  line:
+                    plan.line ||
+                    operatorSettings.line,
+
+                  station:
+                    plan.station ||
+                    operatorSettings.station,
+
+                  plannedDate:
+                    plan.plannedDate ||
+                    '',
+
+                  plannedTime:
+                    plan.plannedTime ||
+                    '',
+
+                  quantity:
+                    plan.quantity ||
+                    50,
+
+                  status:
+                    'Gepland',
+                },
+              ]
+            );
+
+            if (notifications.changeover) {
+              showToast(
+                `Nieuwe omstelling ingepland: ${plan.fromProduct} → ${plan.toProduct}`
+              );
+            }
+          }
         } catch {
           // Geen geldig bericht — negeren.
         }
       };
     } catch {
-      // ntfy.sh niet bereikbaar — de operator ontvangt tijdelijk geen planning.
+      // ntfy.sh niet bereikbaar — de operator ontvangt dan geen
+      // manager-planning; die blijft in dat geval leeg.
     }
 
-    return () => {
-      cancelled = true;
+    return () =>
       es?.close();
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -4449,60 +4521,25 @@ function ManagerApp({
     plannedChangeoverLog,
   ]);
 
-  // Live status van Operator + Waterspider. Bij het openen halen we
-  // eerst recente statusberichten op en daarna luisteren we live verder.
-  // Daardoor toont de Manager niet meer "geen status" enkel omdat de
-  // Operator zijn laatste stap net vóór het openen van de Manager stuurde.
+  // Live status van Operator + Waterspider
   useEffect(() => {
     let es: EventSource | null = null;
-    let cancelled = false;
-
-    const handleDeviceStatus = (data: DeviceStatus) => {
-      if (data.source === 'operator') {
-        const key = `${data.line || '?'}::${data.station || '?'}`;
-        setOperatorStatuses((prev) => {
-          const existing = prev[key];
-          if (existing?.timestamp && data.timestamp && existing.timestamp > data.timestamp) {
-            return prev;
-          }
-          return { ...prev, [key]: data };
-        });
-      } else if (data.source === 'waterspider') {
-        setWaterspiderStatus((prev) => {
-          if (prev?.timestamp && data.timestamp && prev.timestamp > data.timestamp) {
-            return prev;
-          }
-          return data;
-        });
-      }
-    };
-
-    fetch(`https://ntfy.sh/${NTFY_STATUS_TOPIC}/json?poll=1&since=10m`)
-      .then((res) => res.text())
-      .then((text) => {
-        if (cancelled) return;
-        const lines = text.trim().split('\n').filter(Boolean);
-        for (const line of lines) {
-          try {
-            const envelope = JSON.parse(line);
-            if (!envelope?.message) continue;
-            handleDeviceStatus(JSON.parse(envelope.message));
-          } catch {
-            // Ongeldig oud bericht — overslaan.
-          }
-        }
-      })
-      .catch(() => {
-        // Inhaalslag niet beschikbaar; live SSE hieronder blijft werken.
-      });
-
     try {
       es = new EventSource(`https://ntfy.sh/${NTFY_STATUS_TOPIC}/sse`);
       es.onmessage = (event) => {
         try {
           const envelope = JSON.parse(event.data);
           if (!envelope?.message) return;
-          handleDeviceStatus(JSON.parse(envelope.message));
+          const data: DeviceStatus = JSON.parse(envelope.message);
+          if (data.source === 'operator') {
+            // NIEUW: bijhouden per lijn + werkpost, zodat de manager
+            // meerdere operator-werkposten tegelijk kan zien i.p.v.
+            // enkel de laatst-ontvangen status.
+            const key = `${data.line || '?'}::${data.station || '?'}`;
+            setOperatorStatuses((prev) => ({ ...prev, [key]: data }));
+          } else if (data.source === 'waterspider') {
+            setWaterspiderStatus(data);
+          }
         } catch {
           // Geen geldig bericht — negeren.
         }
@@ -4510,11 +4547,7 @@ function ManagerApp({
     } catch {
       // ntfy.sh niet bereikbaar — geen live status beschikbaar.
     }
-
-    return () => {
-      cancelled = true;
-      es?.close();
-    };
+    return () => es?.close();
   }, []);
 
   // Live meldingen & berichten van Operator + Waterspider (probleem
@@ -4596,18 +4629,18 @@ function ManagerApp({
       timestamp: Date.now(),
     };
 
-    fetch(`https://ntfy.sh/${NTFY_CHANGEOVER_TOPIC}`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    })
-      .then(() => {
-        setJustPlanned(true);
-        setTimeout(() => setJustPlanned(false), 3000);
-        setPlannedChangeoverLog((prev) => [payload, ...prev].slice(0, 20));
-      })
-      .catch(() => {
-        alert('Kon de omstelling niet versturen, controleer de internetverbinding.');
-      });
+    void postNtfyJson(NTFY_CHANGEOVER_TOPIC, payload, {
+      key: 'manager-changeover',
+      dedupeMs: 2500,
+    }).then((sent) => {
+      if (!sent) {
+        alert('De omstelling kon niet worden verstuurd. ntfy is mogelijk tijdelijk begrensd (429) of niet bereikbaar.');
+        return;
+      }
+      setJustPlanned(true);
+      setTimeout(() => setJustPlanned(false), 3000);
+      setPlannedChangeoverLog((prev) => [payload, ...prev].slice(0, 20));
+    });
   };
 
   const formatAgo = (timestamp?: number) => {
@@ -5330,19 +5363,22 @@ function WaterspiderApp({ onHome }: Props) {
   ]);
 
   useEffect(() => {
-    fetch(`https://ntfy.sh/${NTFY_STATUS_TOPIC}`, {
-      method: 'POST',
-      body: JSON.stringify({
+    void postNtfyJson(
+      NTFY_STATUS_TOPIC,
+      {
         source: 'waterspider',
         screen,
         stationPhase,
         station: currentStation.name,
         line: currentStation.line,
         timestamp: Date.now(),
-      }),
-    }).catch(() => {
-      // Geen internet: manager ziet tijdelijk geen live status.
-    });
+      },
+      {
+        key: 'waterspider-status',
+        minIntervalMs: 15000,
+        dedupeMs: 10000,
+      }
+    );
   }, [screen, stationPhase, currentStation]);
 
   useEffect(() => {
@@ -6143,4 +6179,3 @@ function WaterspiderApp({ onHome }: Props) {
     </div>
   );
 }
-
