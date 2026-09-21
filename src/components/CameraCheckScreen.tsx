@@ -3,6 +3,7 @@ import { Smartphone, Camera, Loader2, X, Check, ChevronRight } from 'lucide-reac
 import { IndustrialHeader } from './IndustrialHeader';
 import { WorkstationWebcam } from './WorkstationWebcam';
 import { CameraMode, NTFY_TOPIC } from '../main';
+import { analyseMalPhoto } from '../lib/malVision';
 
 interface Props {
   onPass: () => void;
@@ -40,6 +41,8 @@ export function CameraCheckScreen({
   onSettings,
 }: Props) {
   const [state, setState] = useState<CheckState>('waiting');
+  const [webcamAnalysing, setWebcamAnalysing] = useState(false);
+  const [webcamError, setWebcamError] = useState('');
 
   // Kleine tijdsmarge tussen telefoon en tablet, zodat een paar seconden
   // verschil tussen beide toestelklokken geen geldig resultaat blokkeert.
@@ -63,9 +66,49 @@ export function CameraCheckScreen({
     setState(data.status === 'ok' ? 'result-pass' : 'result-fail');
   };
 
+  const handleWebcamPhoto = async (dataUrl: string) => {
+    setWebcamAnalysing(true);
+    setWebcamError('');
+
+    try {
+      const result = await analyseMalPhoto(dataUrl, expectedProduct);
+      const payload: CheckResult = {
+        product: expectedProduct,
+        status: result.status,
+        percentage: result.percentage,
+        context: 'camera-check',
+        timestamp: Date.now(),
+      };
+
+      // Zelfde resultaatformaat als de bestaande telefooncontrole. Dit houdt
+      // de kwaliteitslog en eventuele lokale koppelingen compatibel.
+      try {
+        localStorage.setItem('camera_check_result', JSON.stringify(payload));
+      } catch {
+        // De lokale beoordeling blijft werken als opslag niet beschikbaar is.
+      }
+
+      fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }).catch(() => {
+        // Internet is niet nodig om de lokale webcamcontrole af te ronden.
+      });
+
+      lastSeenRef.current = payload.timestamp;
+      setState(result.status === 'ok' ? 'result-pass' : 'result-fail');
+    } catch (error) {
+      setWebcamError(
+        error instanceof Error ? error.message : 'De webcamfoto kon niet worden geanalyseerd.'
+      );
+    } finally {
+      setWebcamAnalysing(false);
+    }
+  };
+
   // Lokale fallback wanneer telefoon en tablet in dezelfde browser draaien.
   useEffect(() => {
-    if (state !== 'waiting') return;
+    if (state !== 'waiting' || cameraMode !== 'phone') return;
 
     const interval = window.setInterval(() => {
       try {
@@ -79,11 +122,11 @@ export function CameraCheckScreen({
 
     return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, expectedProduct]);
+  }, [state, expectedProduct, cameraMode]);
 
   // Live koppeling tussen echte aparte toestellen via ntfy.sh.
   useEffect(() => {
-    if (state !== 'waiting') return;
+    if (state !== 'waiting' || cameraMode !== 'phone') return;
 
     let es: EventSource | null = null;
 
@@ -105,7 +148,7 @@ export function CameraCheckScreen({
 
     return () => es?.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, expectedProduct]);
+  }, [state, expectedProduct, cameraMode]);
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-gray-100 overflow-hidden relative">
@@ -122,7 +165,20 @@ export function CameraCheckScreen({
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col md:flex-row p-8 gap-8 max-w-[1280px] mx-auto w-full">
         <div className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:p-10 flex flex-col items-center justify-center text-center">
           {cameraMode === 'webcam' ? (
-            <WorkstationWebcam />
+            <div className="w-full">
+              <WorkstationWebcam onPhotoCaptured={handleWebcamPhoto} />
+              {webcamAnalysing && (
+                <div className="mt-4 rounded-xl bg-blue-50 border border-blue-200 p-4 flex items-center justify-center gap-3 text-blue-800">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="font-bold text-sm">Mal automatisch analyseren…</span>
+                </div>
+              )}
+              {webcamError && (
+                <div className="mt-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm font-medium text-red-700">
+                  {webcamError}
+                </div>
+              )}
+            </div>
           ) : (
             <>
               <Loader2 className="w-16 h-16 text-blue-500 animate-spin mb-6" />
