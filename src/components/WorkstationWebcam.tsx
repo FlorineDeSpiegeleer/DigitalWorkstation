@@ -56,28 +56,43 @@ export function WorkstationWebcam({ onAnalyseFrame, active, stabiliseMs = 1200 }
         throw new Error('Deze browser ondersteunt geen cameratoegang.');
       }
 
-      // Eerste, generieke aanvraag: nodig omdat de browser pas na een
-      // toegestane aanvraag de echte cameranamen (labels) prijsgeeft.
+      // Tel eerst hoeveel camera's er zijn — dit kan ook al vóór
+      // toestemming (enkel de namen/labels blijven dan nog leeg). Is er
+      // maar één camera (het normale geval bij een vast gemonteerde
+      // C270), dan hoeven we helemaal niet op zoek te gaan naar een
+      // "voorkeurscamera": één simpele aanvraag volstaat, en dat scheelt
+      // een volledige, overbodige heropstart van de camera.
+      let videoInputCount = 2; // veilige aanname: bij twijfel wél controleren
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        videoInputCount = devices.filter((d) => d.kind === 'videoinput').length;
+      } catch {
+        // Kon niet vooraf tellen: gewoon de volledige, veilige route volgen.
+      }
+
       let stream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 1920 }, height: { ideal: 1080 } },
         audio: false,
       });
 
-      // Staat de Logitech C270 er ook bij, en is dit niet toevallig al de
-      // gekozen camera? Wissel er dan expliciet naar over.
-      const preferredId = await findPreferredDeviceId();
-      const activeId = stream.getVideoTracks()[0]?.getSettings().deviceId;
+      if (videoInputCount > 1) {
+        // Meerdere camera's aanwezig (bv. een ingebouwde laptopcam naast
+        // de C270): nu pas, na toestemming, de echte namen bekijken en
+        // indien nodig expliciet naar de C270 wisselen.
+        const preferredId = await findPreferredDeviceId();
+        const activeId = stream.getVideoTracks()[0]?.getSettings().deviceId;
 
-      if (preferredId && preferredId !== activeId) {
-        stream.getTracks().forEach((track) => track.stop());
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            deviceId: { exact: preferredId },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-          },
-          audio: false,
-        });
+        if (preferredId && preferredId !== activeId) {
+          stream.getTracks().forEach((track) => track.stop());
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              deviceId: { exact: preferredId },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+            },
+            audio: false,
+          });
+        }
       }
 
       streamRef.current = stream;
@@ -89,6 +104,7 @@ export function WorkstationWebcam({ onAnalyseFrame, active, stabiliseMs = 1200 }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Camera kon niet geopend worden.';
+
       setErrorMessage(message);
       setStatus('error');
     }
