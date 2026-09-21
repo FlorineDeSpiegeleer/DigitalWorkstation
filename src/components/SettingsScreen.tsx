@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { Save, AlertTriangle, Camera, Send, Phone, Monitor, CheckCircle, Clock, XCircle, CalendarClock, Info, Download } from 'lucide-react';
 import { IndustrialHeader } from './IndustrialHeader';
 import { CameraMode, OperatorSettings, PlannedChangeover, StepLogEntry, NTFY_EVENTS_TOPIC } from '../main';
+import { postNtfyJson } from '../services/ntfy';
 
 interface Props {
   operatorSettings: OperatorSettings;
@@ -172,9 +173,9 @@ export function SettingsScreen({
     setproblemSubmitted(true);
 
     // NIEUW: publiceer deze melding live naar de Manager-pagina.
-    fetch(`https://ntfy.sh/${NTFY_EVENTS_TOPIC}`, {
-      method: 'POST',
-      body: JSON.stringify({
+    void postNtfyJson(
+      NTFY_EVENTS_TOPIC,
+      {
         source: 'operator',
         type: 'incident',
         message: `${problemData.category}: ${problemData.description}`,
@@ -183,10 +184,9 @@ export function SettingsScreen({
         station: operatorSettings.station,
         incidentId,
         timestamp: Date.now(),
-      }),
-    }).catch(() => {
-      // Geen internet — melding blijft lokaal zichtbaar bij "Recente meldingen".
-    });
+      },
+      { key: 'operator-event', dedupeMs: 2500 }
+    );
 
     setTimeout(() => {
       setproblemSubmitted(false);
@@ -205,9 +205,9 @@ export function SettingsScreen({
     setShowQuickMessages(false);
 
     // NIEUW: publiceer dit bericht live naar de Manager-pagina.
-    fetch(`https://ntfy.sh/${NTFY_EVENTS_TOPIC}`, {
-      method: 'POST',
-      body: JSON.stringify({
+    void postNtfyJson(
+      NTFY_EVENTS_TOPIC,
+      {
         source: 'operator',
         type: 'message',
         message,
@@ -215,19 +215,18 @@ export function SettingsScreen({
         line: operatorSettings.line,
         station: operatorSettings.station,
         timestamp: Date.now(),
-      }),
-    }).catch(() => {
-      // Geen internet — de manager ziet dit bericht dan niet live.
-    });
+      },
+      { key: 'operator-event', dedupeMs: 2500 }
+    );
   };
 
   const handleCallTeamleader = () => {
     onTeamleaderAction('Teamleader wordt gebeld...');
 
     // NIEUW: publiceer deze oproep live naar de Manager-pagina.
-    fetch(`https://ntfy.sh/${NTFY_EVENTS_TOPIC}`, {
-      method: 'POST',
-      body: JSON.stringify({
+    void postNtfyJson(
+      NTFY_EVENTS_TOPIC,
+      {
         source: 'operator',
         type: 'call_request',
         message: 'Operator belt de teamleader',
@@ -235,10 +234,9 @@ export function SettingsScreen({
         line: operatorSettings.line,
         station: operatorSettings.station,
         timestamp: Date.now(),
-      }),
-    }).catch(() => {
-      // Geen internet — de manager ziet dit dan niet live.
-    });
+      },
+      { key: 'operator-event', dedupeMs: 2500 }
+    );
   };
 
   const getStatusColor = (status: string) => {
