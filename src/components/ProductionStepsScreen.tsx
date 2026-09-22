@@ -98,7 +98,7 @@ const PRODUCT2_STEPS: ProductionStep[] = [
   },
   {
     id: 3,
-    title: "Schuif de T-moeren in het midden van de 370 mm profielen",
+    title: "Schuif de T-moeren (M3) in het midden van de 370 mm profielen",
     instruction: "Schuif de T-moeren in beide 370 mm profielen en positioneer ze in het midden van het profiel.",
     imageUrl: IMG_TMOEREN,
     requiresTool: false,
@@ -141,7 +141,7 @@ const PRODUCT2_STEPS: ProductionStep[] = [
   },
   {
     id: 9,
-    title: "Plaats en monteer de wielen links",
+    title: "Plaats en monteer de wielen links (met rem)",
     instruction: "Leg de wielen met rem in de voorziene uitsparingen van de mal, bovenop de profielen. De mal positioneert ze automatisch op de juiste plaats. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
     imageUrl: IMG_WIEL_GEMONTEERD_P2,
     requiresTool: true,
@@ -163,7 +163,7 @@ const PRODUCT2_STEPS: ProductionStep[] = [
   },
   {
     id: 12,
-    title: "Plaats en monteer de wielen rechts",
+    title: "Plaats en monteer de wielen rechts (met rem)",
     instruction: "Leg de wielen met rem in de voorziene uitsparingen van de mal, bovenop de profielen. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
     imageUrl: IMG_WIEL_GEMONTEERD_P2,
     requiresTool: true,
@@ -202,7 +202,7 @@ const PRODUCT1_STEPS: ProductionStep[] = [
   },
   {
     id: 3,
-    title: "Schuif de T-moeren in het midden van de 630 mm profielen",
+    title: "Schuif de T-moeren (M3) in het midden van de 630 mm profielen",
     instruction: "Schuif de T-moeren in beide 630 mm profielen en positioneer ze in het midden van het profiel.",
     imageUrl: IMG_TMOEREN,
     requiresTool: false,
@@ -245,7 +245,7 @@ const PRODUCT1_STEPS: ProductionStep[] = [
   },
   {
     id: 9,
-    title: "Plaats en monteer de wielen links",
+    title: "Plaats en monteer de wielen links (zonder rem)",
     instruction: "Leg de wielen zonder rem in de voorziene uitsparingen van de mal, bovenop de profielen. De mal positioneert ze automatisch op de juiste plaats. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
     imageUrl: IMG_WIEL_GEMONTEERD_P1,
     requiresTool: true,
@@ -267,7 +267,7 @@ const PRODUCT1_STEPS: ProductionStep[] = [
   },
   {
     id: 12,
-    title: "Plaats en monteer de wielen rechts",
+    title: "Plaats en monteer de wielen rechts (zonder rem)",
     instruction: "Leg de wielen zonder rem in de voorziene uitsparingen van de mal, bovenop de profielen. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
     imageUrl: IMG_WIEL_GEMONTEERD_P1,
     requiresTool: true,
