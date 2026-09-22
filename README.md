@@ -1,6 +1,6 @@
 # Digital Workstation
 
-Deze repository bevat het Digital Workstation dat tijdens mijn stage bij Sirris werd ontwikkeld.
+Deze repository bevat het **Digital Workstation** dat tijdens mijn stage bij Sirris werd ontwikkeld.
 
 Deze README is vooral bedoeld als **overdrachtsdocument voor Sirris**. Het doel is dat iemand die de code later opnieuw opent snel begrijpt:
 
@@ -12,35 +12,117 @@ Deze README is vooral bedoeld als **overdrachtsdocument voor Sirris**. Het doel 
 - wat al echt werkt en wat nog prototypegedrag is;
 - waar je moet kijken als je later iets wilt aanpassen.
 
-Live versie:
-
+**Live versie:**  
 https://florinedespiegeleer.github.io/DigitalWorkstation/
 
 ---
 
 # 1. Wat doet de website?
 
-Het Digital Workstation ondersteunt de omstelling tussen **Product 1** en **Product 2**.
+Het Digital Workstation ondersteunt de omstelling tussen **Product 1** en **Product 2** en begeleidt de volledige workflow rond:
 
-De website is opgebouwd rond vier rollen:
+```text
+huidig product
+→ product afvoeren
+→ nieuwe productieopdracht
+→ omstelling
+→ malcontrole
+→ productie
+→ eindcontrole
+→ product afleveren of afkeuren
+→ volgende cyclus
+```
 
-1. **Operator**
-2. **Camera**
-3. **Waterspider**
-4. **Manager**
+De applicatie bestaat uit vier samenwerkende interfaces:
 
-Elke rol heeft een eigen interface.
+- **Operator** — begeleidt de omstelling, productie en eindcontrole;
+- **Camera** — voert de malcontrole en productcontrole uit;
+- **Waterspider** — ondersteunt materiaalvoorziening, voorraadcontrole en voorbereiding;
+- **Manager** — volgt live status en kwaliteit op en plant omstellingen.
 
-De bedoeling is dat de verschillende toestellen tegelijk open kunnen staan. Bijvoorbeeld:
+De verschillende interfaces kunnen tegelijk op aparte toestellen geopend zijn. Ze wisselen status-, planning- en kwaliteitsinformatie uit via `ntfy.sh`.
+
+## Architectuur in één oogopslag
+
+```text
+                         ┌─────────────┐
+                         │   Manager   │
+                         │ planning &  │
+                         │ live status │
+                         └──────┬──────┘
+                                │
+                                │
+                                ▼
+┌─────────────┐          ┌─────────────┐          ┌─────────────┐
+│ Waterspider │ ◄──────► │   ntfy.sh   │ ◄──────► │  Operator   │
+│ materiaal & │          │ communicatie│          │ werkflow &  │
+│ voorraad    │          └──────┬──────┘          │ productie   │
+└─────────────┘                 │                 └──────┬──────┘
+                                │                        │
+                                │ QC-resultaten          │ controle-aanvraag
+                                ▼                        ▼
+                         ┌─────────────┐          ┌─────────────┐
+                         │   Manager   │          │   Camera    │
+                         │ kwaliteits- │          │ mal & QC    │
+                         │ opvolging   │          └─────────────┘
+                         └─────────────┘
+```
+
+In de praktijk kan dit bijvoorbeeld zo gebruikt worden:
 
 - Operator op een tablet of pc aan de werkpost;
 - Camera op een smartphone;
 - Waterspider op een klein mobiel toestel of polstablet;
 - Manager op een pc.
 
-De schermen communiceren onderling via `ntfy.sh`.
+Lokale toestand wordt daarnaast opgeslagen in `localStorage` en `sessionStorage`.
 
-Het systeem is dus niet één klassieke website waarin één gebruiker alles doet. Het is eerder één applicatie met vier verschillende interfaces die samen één productieworkflow vormen.
+> [!IMPORTANT]
+> **Deze applicatie is een functionele demonstrator en nog geen productieklare industriële toepassing.**
+>
+> De belangrijkste prototypebeperkingen zijn:
+>
+> - de producteindcontrole is momenteel gesimuleerd en publiceert automatisch een `OK`-resultaat;
+> - de `ntfy.sh`-topics zijn publiek en dus niet geschikt als definitieve industriële communicatie;
+> - gegevens worden hoofdzakelijk lokaal in de browser opgeslagen en niet in een centrale database;
+> - een aantal omstelschermen bevatten nog Product 2-specifieke teksten en data;
+> - geplande datum/tijd is momenteel nog geen echte automatisch tijdgestuurde planning.
+>
+> De volledige lijst met beperkingen staat verderop in **sectie 52 — Huidige beperkingen / zaken die nog niet volledig afgewerkt zijn**.
+
+## Snel starten
+
+Benodigd:
+
+```text
+Node.js
+npm
+```
+
+In de projectmap:
+
+```bash
+npm install
+npm run dev
+```
+
+Voor een productiebuild:
+
+```bash
+npm run build
+```
+
+Voor lokaal bekijken van de build:
+
+```bash
+npm run preview
+```
+
+De scripts staan in:
+
+```text
+package.json
+```
 
 ---
 
@@ -1843,43 +1925,7 @@ Test:
 
 ---
 
-# 54. Lokaal starten
-
-Benodigd:
-
-```text
-Node.js
-npm
-```
-
-In de projectmap:
-
-```bash
-npm install
-npm run dev
-```
-
-Voor een productiebuild:
-
-```bash
-npm run build
-```
-
-Voor lokaal bekijken van de build:
-
-```bash
-npm run preview
-```
-
-De scripts staan in:
-
-```text
-package.json
-```
-
----
-
-# 55. Gebruikte technologie
+# 54. Gebruikte technologie
 
 Belangrijkste packages:
 
@@ -1895,7 +1941,7 @@ Er is geen aparte backend in deze repository.
 
 ---
 
-# 56. Suggestie voor verdere ontwikkeling
+# 55. Suggestie voor verdere ontwikkeling
 
 Als deze demonstrator later verder wordt onderzocht, zou ik technisch ongeveer in deze volgorde werken:
 
@@ -1912,7 +1958,7 @@ Als deze demonstrator later verder wordt onderzocht, zou ik technisch ongeveer i
 
 ---
 
-# 57. Samengevat
+# 56. Samengevat
 
 De huidige website is vooral een functionele demonstrator van hoe een digitale werkpost de verschillende rollen rond een SMED-omstelling kan verbinden.
 
