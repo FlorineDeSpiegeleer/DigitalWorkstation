@@ -91,10 +91,15 @@ export function SettingsScreen({
     cycles.forEach((cycle) => {
       const entries = stepLog.filter((entry) => entry.cycle === cycle);
       const cycleStart = Math.min(...entries.map((entry) => entry.startTime));
-      const cycleProduct = entries[0]?.product ?? '';
+      // NIEUW (bugfix): niet meer het EERSTE item van de cyclus (dat is
+      // "Product wegzetten" van het VORIGE product, want op dat moment is
+      // de nieuwe productwissel nog niet bekend) maar het LAATSTE item
+      // (de eindcontrole die de cyclus afsluit) — dat is altijd het
+      // product waar deze cyclus effectief over gaat.
+      const cycleProduct = entries[entries.length - 1]?.product ?? '';
 
       const rows = [
-        ['Stap', 'Fase', 'Activiteit', 'Startdatum', 'Starttijd', 'Stopdatum', 'Stoptijd', 'Start (min:sec,msec)', 'Stop (min:sec,msec)', 'Duur (min:sec,msec)'],
+        ['Stap', 'Fase', 'Activiteit', 'Resultaat', 'Startdatum', 'Starttijd', 'Stopdatum', 'Stoptijd', 'Start (min:sec,msec)', 'Stop (min:sec,msec)', 'Duur (min:sec,msec)'],
         ...entries.map((entry, index) => {
           const start = formatDateTime(entry.startTime);
           const stop = formatDateTime(entry.stopTime);
@@ -103,6 +108,11 @@ export function SettingsScreen({
             index + 1,
             entry.phase,
             entry.step,
+            entry.result === 'ok'
+              ? 'Goedgekeurd'
+              : entry.result === 'error'
+              ? 'Afgekeurd'
+              : '',
             start.date,
             start.time,
             stop.date,
@@ -115,7 +125,7 @@ export function SettingsScreen({
       ];
 
       const sheet = XLSX.utils.aoa_to_sheet(rows);
-      sheet['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 45 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 20 }];
+      sheet['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 45 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 20 }];
 
       // Tabbladnamen mogen max. 31 tekens en geen / \ ? * [ ] bevatten.
       const sheetName = `Cyclus ${cycle} - ${cycleProduct}`
