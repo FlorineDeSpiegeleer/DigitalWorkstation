@@ -20,9 +20,15 @@ interface Props {
   // tabblad per cyclus (van na het vorige goede product t.e.m. de
   // eindcontrole van het huidige product).
   stepLog?: StepLogEntry[];
+  // NIEUW: welke cyclus hier samengevat moet worden — expliciet
+  // meegegeven vanuit main.tsx, want het hoogste cyclusnummer in
+  // stepLog is sinds de "Eindcontrole telt dubbel"-fix niet meer
+  // betrouwbaar (dat bevat ook al een enkele, korte markeerregel voor
+  // de volgende, nog lopende cyclus).
+  displayCycle?: number;
 }
 
-export function FinishScreen({ sessionData, totalTime, productName, operatorSettings, producedCount = 0, orderQuantity = 50, onStartNextCycle, stepLog = [] }: Props) {
+export function FinishScreen({ sessionData, totalTime, productName, operatorSettings, producedCount = 0, orderQuantity = 50, onStartNextCycle, stepLog = [], displayCycle }: Props) {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -37,9 +43,10 @@ export function FinishScreen({ sessionData, totalTime, productName, operatorSett
   // berekenen de weergegeven totaaltijd daarom rechtstreeks uit dezelfde
   // stepLog-data als de Excel-export, zodat beide altijd overeenkomen.
   const currentCycle =
-    stepLog.length > 0
+    displayCycle ??
+    (stepLog.length > 0
       ? Math.max(...stepLog.map((entry) => entry.cycle))
-      : null;
+      : null);
 
   const cycleTotalSeconds =
     currentCycle !== null
