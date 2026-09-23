@@ -7,7 +7,7 @@ export interface MalVisionResult {
 
 // Zelfde grenswaarde en kleurregels als de bestaande CameraApp, zodat
 // telefoon en vaste webcam dezelfde malcontrole uitvoeren.
-export const MAL_COLOR_THRESHOLD_PERCENT = 0.10;
+export const MAL_COLOR_THRESHOLD_PERCENT = 0.12;
 
 export async function analyseMalPhoto(
   dataUrl: string,
