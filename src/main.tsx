@@ -2739,12 +2739,29 @@ function OperatorApp({
   const timelineBoundaryRef =
     useRef<number>(Date.now());
 
+  // NIEUW (bugfix): "Omsteltijd"/"Cyclustijd" in de header bleek soms op
+  // 00:00 te blijven staan — de teller hing af van
+  // sessionData.changeoverStartTime, een veld dat via meerdere, elkaar
+  // deels overlappende paden gezet wordt (de knop, een live SSE-melding
+  // van de manager, een geplande omstelling die vervalt) en daardoor niet
+  // overal betrouwbaar gezet werd. Deze ref is de enkele, betrouwbare
+  // bron: ze wordt exact gezet op het moment dat een nieuwe cyclus
+  // effectief start (zie handleFinalQCPass), ongeacht via welk pad die
+  // cyclus tot stand kwam.
+  const cycleStartTimeRef =
+    useRef<number>(Date.now());
+
   const logStep = (
     phase: StepLogEntry['phase'],
     product: string,
     step: string,
     stopTime: number = Date.now(),
-    result?: StepLogEntry['result']
+    result?: StepLogEntry['result'],
+    // NIEUW: laat toe om de cyclus expliciet te overschrijven. Nodig
+    // voor "Eindcontrole goedgekeurd", die als EERSTE stap van de
+    // NIEUWE cyclus moet gelden (nog vóór de cycleNumber-state zelf is
+    // opgehoogd — React past die pas toe in de volgende render).
+    cycleOverride?: number
   ) => {
     const startTime = timelineBoundaryRef.current;
 
@@ -2759,7 +2776,7 @@ function OperatorApp({
         startTime,
         stopTime,
         durationMs: stopTime - startTime,
-        cycle: cycleNumber,
+        cycle: cycleOverride ?? cycleNumber,
         result,
       },
     ]);
@@ -2864,7 +2881,6 @@ function OperatorApp({
 
   useEffect(() => {
     if (
-      sessionData.changeoverStartTime &&
       currentStep !==
         'finish'
     ) {
@@ -2874,7 +2890,7 @@ function OperatorApp({
           setElapsedTime(
             Math.floor(
               (Date.now() -
-                sessionData.changeoverStartTime!) /
+                cycleStartTimeRef.current) /
                 1000
             )
           );
@@ -2887,7 +2903,6 @@ function OperatorApp({
         );
     }
   }, [
-    sessionData.changeoverStartTime,
     currentStep,
   ]);
 
@@ -3569,23 +3584,26 @@ function OperatorApp({
         (prev) => prev + 1
       );
 
-      // NIEUW (bugfix): de "Eindcontrole"-stap hier EXPLICIET en
-      // VOORAF loggen, met de huidige (nog niet opgehoogde) cyclus.
-      // Zonder dit zou de generieke useEffect verderop (die normaal
-      // 'final-qc' logt) dit pas NA de render doen — en dan is
-      // cycleNumber hieronder al opgehoogd, waardoor deze allerlaatste
-      // stap van de oude cyclus per ongeluk in het NIEUWE tabblad
-      // terechtkwam. We zetten previousStepRef ook meteen gelijk aan
-      // de volgende stap, zodat die generieke effect deze overgang
-      // nadien niet nog eens (dubbel) probeert te loggen.
+      // NIEUW (herzien): "Eindcontrole goedgekeurd" is de EERSTE stap
+      // van de NIEUWE cyclus (niet de laatste van de oude) — daarom hier
+      // expliciet loggen met cycleNumber + 1, want de cycleNumber-state
+      // zelf is op dit punt nog niet opgehoogd (dat gebeurt pas in de
+      // volgende render). We zetten previousStepRef ook meteen gelijk
+      // aan de volgende stap, zodat de generieke useEffect verderop deze
+      // overgang nadien niet nog eens (dubbel) probeert te loggen.
       logStep(
         'Voorbereiding',
         toProduct,
         'Eindcontrole',
         Date.now(),
-        'ok'
+        'ok',
+        cycleNumber + 1
       );
       previousStepRef.current = 'deliver-product';
+
+      // NIEUW (bugfix): de nieuwe cyclus start hier — dit is dus ook
+      // exact het moment om de betrouwbare timer-ref opnieuw te zetten.
+      cycleStartTimeRef.current = Date.now();
 
       // NIEUW: de volgende cyclus start hier, exact op het moment dat
       // het huidige product goedgekeurd is — dat IS "het laatste goede
@@ -4554,6 +4572,32 @@ function ManagerApp({
 
   const [justPlanned, setJustPlanned] = useState(false);
 
+  // NIEUW (bugfix): de vorige aanpak vulde "Van product" enkel in
+  // wanneer de manager de Werkpost-lijst ZELF wijzigde (via onChange).
+  // Staat de juiste lijn echter al standaard geselecteerd (bv. "Lijn 4 ·
+  // Stat. 2", de standaardwaarde), dan wijzigt de manager die dropdown
+  // vaak nooit expliciet — en dan liep de auto-invulling dus nooit. Deze
+  // effect reageert in plaats daarvan op de live status zelf: telkens
+  // wanneer er nieuwe statusdata binnenkomt voor de op dit moment
+  // geselecteerde lijn/werkpost, wordt "Van product" automatisch
+  // gelijkgezet aan wat die werkpost effectief aan het produceren is.
+  useEffect(() => {
+    const key = `${planning.line}::${planning.station}`;
+    const currentProduct = operatorStatuses[key]?.toProduct;
+
+    if (
+      (currentProduct === 'Product 1' || currentProduct === 'Product 2') &&
+      currentProduct !== planning.fromProduct
+    ) {
+      setPlanning((prev) => ({
+        ...prev,
+        fromProduct: currentProduct,
+        toProduct: currentProduct === 'Product 1' ? 'Product 2' : 'Product 1',
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [operatorStatuses, planning.line, planning.station]);
+
   // NIEUW (punt 3): live data terugschrijven naar localStorage bij elke
   // wijziging. Het planningsformulier zelf bewust niet bewaard — dat
   // hoort bij een lopende invoer, niet bij data om te herstellen.
@@ -4949,26 +4993,7 @@ function ManagerApp({
                   value={`${planning.line}::${planning.station}`}
                   onChange={(e) => {
                     const [line, station] = e.target.value.split('::');
-                    // NIEUW: vul "Van product" automatisch in met het
-                    // product waar deze werkpost momenteel mee bezig is
-                    // (uit de laatst ontvangen live status) — zo kan de
-                    // manager onmogelijk de verkeerde richting inplannen.
-                    // "Naar product" springt zoals eerder automatisch
-                    // naar het overige product.
-                    const key = `${line}::${station}`;
-                    const currentProduct = operatorStatuses[key]?.toProduct;
-
-                    if (currentProduct === 'Product 1' || currentProduct === 'Product 2') {
-                      setPlanning({
-                        ...planning,
-                        line,
-                        station,
-                        fromProduct: currentProduct,
-                        toProduct: currentProduct === 'Product 1' ? 'Product 2' : 'Product 1',
-                      });
-                    } else {
-                      setPlanning({ ...planning, line, station });
-                    }
+                    setPlanning({ ...planning, line, station });
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-slate-900"
                 >
@@ -5519,7 +5544,7 @@ function WaterspiderApp({ onHome }: Props) {
     const items: PickupOrRefillItem[] = [];
 
     scannedBins.forEach((qr) => {
-      const bin = BIN_DATABASE.find((b) => b.qrCode === qr.trim());
+      const bin = BIN_DATABASE.find((b) => b.qrCode.toUpperCase() === qr.trim().toUpperCase());
 
       if (bin) {
         items.push({
@@ -5550,7 +5575,7 @@ function WaterspiderApp({ onHome }: Props) {
     const items: PickupOrRefillItem[] = [];
 
     scannedBins.forEach((qr) => {
-      const bin = BIN_DATABASE.find((b) => b.qrCode === qr.trim());
+      const bin = BIN_DATABASE.find((b) => b.qrCode.toUpperCase() === qr.trim().toUpperCase());
 
       if (bin) {
         items.push({
@@ -5602,7 +5627,7 @@ function WaterspiderApp({ onHome }: Props) {
 
   const acceptQrCode = (rawCode: string) => {
     const qrCode = rawCode.trim().toUpperCase();
-    const bin = BIN_DATABASE.find((item) => item.qrCode === qrCode.trim());
+    const bin = BIN_DATABASE.find((item) => item.qrCode.toUpperCase() === qrCode);
 
     if (!bin) {
       setScannerMessage(`Onbekende QR: ${rawCode}`);
