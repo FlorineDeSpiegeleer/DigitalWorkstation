@@ -3584,18 +3584,30 @@ function OperatorApp({
         (prev) => prev + 1
       );
 
-      // NIEUW (herzien): "Eindcontrole goedgekeurd" is de EERSTE stap
-      // van de NIEUWE cyclus (niet de laatste van de oude) — daarom hier
-      // expliciet loggen met cycleNumber + 1, want de cycleNumber-state
-      // zelf is op dit punt nog niet opgehoogd (dat gebeurt pas in de
-      // volgende render). We zetten previousStepRef ook meteen gelijk
-      // aan de volgende stap, zodat de generieke useEffect verderop deze
-      // overgang nadien niet nog eens (dubbel) probeert te loggen.
+      // NIEUW (herzien): "Eindcontrole goedgekeurd" moet ZOWEL de
+      // laatste stap van de huidige cyclus zijn ALS de eerste stap van
+      // de volgende — dus letterlijk twee keer loggen, éénmaal per
+      // cyclus. timelineBoundaryRef schuift na de eerste aanroep al op
+      // naar 'stopTime', dus de tweede aanroep zou anders meteen weer
+      // stoppen (stopTime <= startTime) — vandaar de expliciete +1ms.
+      // We zetten previousStepRef meteen gelijk aan de volgende stap,
+      // zodat de generieke useEffect verderop deze overgang nadien niet
+      // nog eens (dubbel) probeert te loggen.
+      const finalQcTime = Date.now();
+
       logStep(
         'Voorbereiding',
         toProduct,
         'Eindcontrole',
-        Date.now(),
+        finalQcTime,
+        'ok',
+        cycleNumber
+      );
+      logStep(
+        'Voorbereiding',
+        toProduct,
+        'Eindcontrole',
+        finalQcTime + 1,
         'ok',
         cycleNumber + 1
       );
@@ -4331,6 +4343,13 @@ function OperatorApp({
           }
           stepLog={
             stepLog
+          }
+          // NIEUW: het cyclusnummer expliciet meegeven — cycleNumber is
+          // op dit punt al opgehoogd naar de VOLGENDE (nog lopende)
+          // cyclus, dus de cyclus die we hier willen samenvatten is
+          // cycleNumber - 1.
+          displayCycle={
+            cycleNumber - 1
           }
         />
 
