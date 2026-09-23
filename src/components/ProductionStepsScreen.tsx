@@ -141,7 +141,7 @@ const PRODUCT2_STEPS: ProductionStep[] = [
   },
   {
     id: 9,
-    title: "Plaats en monteer de wielen links (met rem)",
+    title: "Plaats en monteer de wielen links (met rem, M4)",
     instruction: "Leg de wielen met rem in de voorziene uitsparingen van de mal, bovenop de profielen. De mal positioneert ze automatisch op de juiste plaats. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
     imageUrl: IMG_WIEL_GEMONTEERD_P2,
     requiresTool: true,
@@ -163,7 +163,7 @@ const PRODUCT2_STEPS: ProductionStep[] = [
   },
   {
     id: 12,
-    title: "Plaats en monteer de wielen rechts (met rem)",
+    title: "Plaats en monteer de wielen rechts (met rem, M4)",
     instruction: "Leg de wielen met rem in de voorziene uitsparingen van de mal, bovenop de profielen. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
     imageUrl: IMG_WIEL_GEMONTEERD_P2,
     requiresTool: true,
@@ -245,7 +245,7 @@ const PRODUCT1_STEPS: ProductionStep[] = [
   },
   {
     id: 9,
-    title: "Plaats en monteer de wielen links (zonder rem)",
+    title: "Plaats en monteer de wielen links (zonder rem, M4)",
     instruction: "Leg de wielen zonder rem in de voorziene uitsparingen van de mal, bovenop de profielen. De mal positioneert ze automatisch op de juiste plaats. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
     imageUrl: IMG_WIEL_GEMONTEERD_P1,
     requiresTool: true,
@@ -267,7 +267,7 @@ const PRODUCT1_STEPS: ProductionStep[] = [
   },
   {
     id: 12,
-    title: "Plaats en monteer de wielen rechts (zonder rem)",
+    title: "Plaats en monteer de wielen rechts (zonder rem, M4)",
     instruction: "Leg de wielen zonder rem in de voorziene uitsparingen van de mal, bovenop de profielen. Bevestig ze vervolgens met de M3-bouten en draai ze vast met een M3-inbussleutel.",
     imageUrl: IMG_WIEL_GEMONTEERD_P1,
     requiresTool: true,
