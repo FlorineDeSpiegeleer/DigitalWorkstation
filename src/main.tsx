@@ -173,6 +173,10 @@ export interface StepLogEntry {
   // eindcontrole van dat nieuwe product. Elke cyclus wordt een apart
   // tabblad in de Excel-export.
   cycle: number;
+  // NIEUW: resultaat van een controle (malcontrole/eindcontrole), enkel
+  // ingevuld bij die specifieke stappen — leeg/undefined voor alle
+  // andere (niet-controle) stappen.
+  result?: 'ok' | 'error';
 }
 
 
@@ -2739,7 +2743,8 @@ function OperatorApp({
     phase: StepLogEntry['phase'],
     product: string,
     step: string,
-    stopTime: number = Date.now()
+    stopTime: number = Date.now(),
+    result?: StepLogEntry['result']
   ) => {
     const startTime = timelineBoundaryRef.current;
 
@@ -2755,6 +2760,7 @@ function OperatorApp({
         stopTime,
         durationMs: stopTime - startTime,
         cycle: cycleNumber,
+        result,
       },
     ]);
 
@@ -3441,6 +3447,23 @@ function OperatorApp({
         'cameraCheckPassed'
       );
 
+      // NIEUW: resultaat van de malcontrole expliciet loggen (zelfde
+      // patroon als bij de eindcontrole), zodat "Resultaat" correct in
+      // de Excel-export verschijnt.
+      const nextStep: FlowStep =
+        cameraCheckOrigin === 'guided'
+          ? 'changeover-step3'
+          : 'main-dashboard';
+
+      logStep(
+        'Voorbereiding',
+        toProduct,
+        'Camera controle (mal)',
+        Date.now(),
+        'ok'
+      );
+      previousStepRef.current = nextStep;
+
       if (
         cameraCheckOrigin ===
         'guided'
@@ -3474,6 +3497,21 @@ function OperatorApp({
           'warning'
         );
       }
+
+      // NIEUW: resultaat van de malcontrole expliciet loggen als 'error'.
+      const nextStep: FlowStep =
+        cameraCheckOrigin === 'guided'
+          ? 'changeover-step2'
+          : 'changeover-step1';
+
+      logStep(
+        'Voorbereiding',
+        toProduct,
+        'Camera controle (mal)',
+        Date.now(),
+        'error'
+      );
+      previousStepRef.current = nextStep;
 
       if (
         cameraCheckOrigin ===
@@ -3531,6 +3569,24 @@ function OperatorApp({
         (prev) => prev + 1
       );
 
+      // NIEUW (bugfix): de "Eindcontrole"-stap hier EXPLICIET en
+      // VOORAF loggen, met de huidige (nog niet opgehoogde) cyclus.
+      // Zonder dit zou de generieke useEffect verderop (die normaal
+      // 'final-qc' logt) dit pas NA de render doen — en dan is
+      // cycleNumber hieronder al opgehoogd, waardoor deze allerlaatste
+      // stap van de oude cyclus per ongeluk in het NIEUWE tabblad
+      // terechtkwam. We zetten previousStepRef ook meteen gelijk aan
+      // de volgende stap, zodat die generieke effect deze overgang
+      // nadien niet nog eens (dubbel) probeert te loggen.
+      logStep(
+        'Voorbereiding',
+        toProduct,
+        'Eindcontrole',
+        Date.now(),
+        'ok'
+      );
+      previousStepRef.current = 'deliver-product';
+
       // NIEUW: de volgende cyclus start hier, exact op het moment dat
       // het huidige product goedgekeurd is — dat IS "het laatste goede
       // product van deze serie". Alles wat hierna gebeurt (wegzetten,
@@ -3583,6 +3639,19 @@ function OperatorApp({
           'warning'
         );
       }
+
+      // NIEUW: resultaat van de eindcontrole expliciet loggen als
+      // 'error'. Geen cyclus-verhoging hier — een afkeuring blijft in
+      // dezelfde cyclus (er wordt geen nieuw product gestart, enkel
+      // hersteld en opnieuw gecontroleerd).
+      logStep(
+        'Voorbereiding',
+        toProduct,
+        'Eindcontrole',
+        Date.now(),
+        'error'
+      );
+      previousStepRef.current = 'reject-product';
 
       navigateTo(
         'reject-product'
@@ -4880,7 +4949,26 @@ function ManagerApp({
                   value={`${planning.line}::${planning.station}`}
                   onChange={(e) => {
                     const [line, station] = e.target.value.split('::');
-                    setPlanning({ ...planning, line, station });
+                    // NIEUW: vul "Van product" automatisch in met het
+                    // product waar deze werkpost momenteel mee bezig is
+                    // (uit de laatst ontvangen live status) — zo kan de
+                    // manager onmogelijk de verkeerde richting inplannen.
+                    // "Naar product" springt zoals eerder automatisch
+                    // naar het overige product.
+                    const key = `${line}::${station}`;
+                    const currentProduct = operatorStatuses[key]?.toProduct;
+
+                    if (currentProduct === 'Product 1' || currentProduct === 'Product 2') {
+                      setPlanning({
+                        ...planning,
+                        line,
+                        station,
+                        fromProduct: currentProduct,
+                        toProduct: currentProduct === 'Product 1' ? 'Product 2' : 'Product 1',
+                      });
+                    } else {
+                      setPlanning({ ...planning, line, station });
+                    }
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-slate-900"
                 >
@@ -5198,7 +5286,23 @@ const BIN_DATABASE: BinDefinition[] = [
     stationLocation: 'Poka-yoke kast · B7',
   },
   {
-    qrCode: 'BIN-HANDLE',
+    // NIEUW (bugfix): exacte QR-waarde, rechtstreeks gedecodeerd uit het
+    // fysieke label — was voorheen niet aanwezig in de database.
+    qrCode: 'wielen met rem',
+    material: 'Wielen met rem',
+    pickupLocation: 'Supermarkt A9',
+    stationLocation: 'Poka-yoke kast · B9',
+  },
+  {
+    qrCode: 'wielen zonder rem',
+    material: 'Wielen zonder rem',
+    pickupLocation: 'Supermarkt A10',
+    stationLocation: 'Poka-yoke kast · B10',
+  },
+  {
+    // NIEUW (bugfix): het fysieke label bevat de QR-waarde 'Handvat',
+    // niet 'BIN-HANDLE' — vandaar dat dit label voorheen niet herkend werd.
+    qrCode: 'Handvat',
     material: 'Handvatten',
     pickupLocation: 'Supermarkt A8',
     stationLocation: 'Poka-yoke kast · B8',
@@ -5415,7 +5519,7 @@ function WaterspiderApp({ onHome }: Props) {
     const items: PickupOrRefillItem[] = [];
 
     scannedBins.forEach((qr) => {
-      const bin = BIN_DATABASE.find((b) => b.qrCode === qr);
+      const bin = BIN_DATABASE.find((b) => b.qrCode === qr.trim());
 
       if (bin) {
         items.push({
@@ -5446,7 +5550,7 @@ function WaterspiderApp({ onHome }: Props) {
     const items: PickupOrRefillItem[] = [];
 
     scannedBins.forEach((qr) => {
-      const bin = BIN_DATABASE.find((b) => b.qrCode === qr);
+      const bin = BIN_DATABASE.find((b) => b.qrCode === qr.trim());
 
       if (bin) {
         items.push({
@@ -5498,7 +5602,7 @@ function WaterspiderApp({ onHome }: Props) {
 
   const acceptQrCode = (rawCode: string) => {
     const qrCode = rawCode.trim().toUpperCase();
-    const bin = BIN_DATABASE.find((item) => item.qrCode === qrCode);
+    const bin = BIN_DATABASE.find((item) => item.qrCode === qrCode.trim());
 
     if (!bin) {
       setScannerMessage(`Onbekende QR: ${rawCode}`);
@@ -5916,9 +6020,12 @@ function WaterspiderApp({ onHome }: Props) {
       counted === undefined ? null : Math.max(0, profile.target - counted);
 
     const setCount = (value: number) => {
+      // NIEUW (bugfix): niet langer capt op profile.target — enkel nog
+      // een ondergrens van 0, zodat er ook méér dan het doel ingevoerd
+      // kan worden.
       setProfileCounts((prev) => ({
         ...prev,
-        [profile.id]: Math.max(0, Math.min(profile.target, value)),
+        [profile.id]: Math.max(0, value),
       }));
     };
 
@@ -5956,16 +6063,15 @@ function WaterspiderApp({ onHome }: Props) {
               {profile.name}
             </h2>
 
-            <p className="text-[11px] text-slate-500 mt-1">
-              Doel: {profile.target}
-            </p>
-
             <div className="mt-3 flex items-center justify-center">
               <input
                 type="number"
                 inputMode="numeric"
                 min={0}
-                max={profile.target}
+                // NIEUW (bugfix): geen max meer op het invoerveld zelf —
+                // er kunnen ook méér profielen aanwezig zijn dan het
+                // ingestelde doel, en dat mocht voorheen niet ingevoerd
+                // worden (Math.min hieronder blokkeerde dat stil).
                 value={counted ?? ''}
                 placeholder="0"
                 onChange={(e) => {
@@ -5980,6 +6086,18 @@ function WaterspiderApp({ onHome }: Props) {
                   }
                   const parsed = parseInt(raw, 10);
                   if (!Number.isNaN(parsed)) setCount(parsed);
+                }}
+                onKeyDown={(e) => {
+                  // NIEUW (bugfix): Enter op het (numerieke) toetsenbord
+                  // lekte door naar de pagina zelf. Hier onderscheppen we
+                  // dat expliciet, zodat Enter enkel het invoerveld
+                  // bevestigt (en de toetsenbordpopup sluit) zonder
+                  // verder iets op de pagina te triggeren.
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.blur();
+                  }
                 }}
                 className="w-24 h-16 rounded-xl bg-[#0B1929] text-white text-center text-[28px] font-black outline-none"
               />
