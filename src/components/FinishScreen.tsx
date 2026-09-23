@@ -29,6 +29,29 @@ export function FinishScreen({ sessionData, totalTime, productName, operatorSett
     return `${mins}m ${secs}s`;
   };
 
+  // NIEUW (bugfix): "totalTime" (elapsedTime) telt enkel op zodra er
+  // effectief een omstelling gaande is (sessionData.changeoverStartTime).
+  // Bij Product 1 — de allereerste cyclus, zonder voorafgaande omstelling
+  // — wordt die waarde nooit gezet, waardoor hier altijd 0 verscheen,
+  // ook al klopte de Excel-export (die uit stepLog leest) wel. We
+  // berekenen de weergegeven totaaltijd daarom rechtstreeks uit dezelfde
+  // stepLog-data als de Excel-export, zodat beide altijd overeenkomen.
+  const currentCycle =
+    stepLog.length > 0
+      ? Math.max(...stepLog.map((entry) => entry.cycle))
+      : null;
+
+  const cycleTotalSeconds =
+    currentCycle !== null
+      ? Math.round(
+          stepLog
+            .filter((entry) => entry.cycle === currentCycle)
+            .reduce((sum, entry) => sum + entry.durationMs, 0) / 1000
+        )
+      : totalTime;
+
+  const displayTotalTime = cycleTotalSeconds || totalTime;
+
   const calculateChangeoverTime = () => {
     if (sessionData.timestamps.changeoverCompleted && sessionData.timestamps.changeoverGuidedStart) {
       const seconds = Math.floor((sessionData.timestamps.changeoverCompleted - sessionData.timestamps.changeoverGuidedStart) / 1000);
@@ -80,10 +103,15 @@ export function FinishScreen({ sessionData, totalTime, productName, operatorSett
     cycles.forEach((cycle) => {
       const entries = stepLog.filter((entry) => entry.cycle === cycle);
       const cycleStart = Math.min(...entries.map((entry) => entry.startTime));
-      const cycleProduct = entries[0]?.product ?? '';
+      // NIEUW (bugfix): niet meer het EERSTE item van de cyclus (dat is
+      // "Product wegzetten" van het VORIGE product, want op dat moment is
+      // de nieuwe productwissel nog niet bekend) maar het LAATSTE item
+      // (de eindcontrole die de cyclus afsluit) — dat is altijd het
+      // product waar deze cyclus effectief over gaat.
+      const cycleProduct = entries[entries.length - 1]?.product ?? '';
 
       const rows = [
-        ['Stap', 'Fase', 'Activiteit', 'Startdatum', 'Starttijd', 'Stopdatum', 'Stoptijd', 'Start (min:sec,msec)', 'Stop (min:sec,msec)', 'Duur (min:sec,msec)'],
+        ['Stap', 'Fase', 'Activiteit', 'Resultaat', 'Startdatum', 'Starttijd', 'Stopdatum', 'Stoptijd', 'Start (min:sec,msec)', 'Stop (min:sec,msec)', 'Duur (min:sec,msec)'],
         ...entries.map((entry, index) => {
           const start = formatDateTime(entry.startTime);
           const stop = formatDateTime(entry.stopTime);
@@ -92,6 +120,11 @@ export function FinishScreen({ sessionData, totalTime, productName, operatorSett
             index + 1,
             entry.phase,
             entry.step,
+            entry.result === 'ok'
+              ? 'Goedgekeurd'
+              : entry.result === 'error'
+              ? 'Afgekeurd'
+              : '',
             start.date,
             start.time,
             stop.date,
@@ -104,7 +137,7 @@ export function FinishScreen({ sessionData, totalTime, productName, operatorSett
       ];
 
       const sheet = XLSX.utils.aoa_to_sheet(rows);
-      sheet['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 45 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 20 }];
+      sheet['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 45 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 20 }];
 
       // Tabbladnamen mogen max. 31 tekens en geen / \ ? * [ ] bevatten.
       const sheetName = `Cyclus ${cycle} - ${cycleProduct}`
@@ -147,7 +180,7 @@ export function FinishScreen({ sessionData, totalTime, productName, operatorSett
                   <Clock className="w-7 h-7 text-blue-600" />
                   <span className="text-sm text-gray-700 font-medium">Totale omsteltijd</span>
                 </div>
-                <span className="text-2xl text-blue-700 font-bold">{formatTime(totalTime)}</span>
+                <span className="text-2xl text-blue-700 font-bold">{formatTime(displayTotalTime)}</span>
               </div>
             </div>
 
@@ -207,7 +240,7 @@ export function FinishScreen({ sessionData, totalTime, productName, operatorSett
               </div>
               <div className="flex items-center justify-between text-sm pt-3 border-t border-gray-200">
                 <span className="text-gray-700 font-medium">Totaal:</span>
-                <span className="text-gray-900 font-bold text-lg">{formatTime(totalTime)}</span>
+                <span className="text-gray-900 font-bold text-lg">{formatTime(displayTotalTime)}</span>
               </div>
             </div>
           </div>
