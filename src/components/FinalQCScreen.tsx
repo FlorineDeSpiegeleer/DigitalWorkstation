@@ -230,6 +230,23 @@ export function FinalQCScreen({
         </div>
       </div>
 
+      <div className="absolute bottom-2 right-2 flex items-center gap-1">
+        <button
+          onClick={() => setState('result-pass')}
+          aria-label="Handmatig goedkeuren (demo-fallback)"
+          className="w-8 h-8 flex items-center justify-center active:scale-90 transition-transform"
+        >
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 opacity-40" />
+        </button>
+        <button
+          onClick={() => setState('result-fail')}
+          aria-label="Handmatig afkeuren (demo-fallback)"
+          className="w-8 h-8 flex items-center justify-center active:scale-90 transition-transform"
+        >
+          <span className="w-2.5 h-2.5 rounded-full bg-red-500 opacity-40" />
+        </button>
+      </div>
+
       {(state === 'result-pass' || state === 'result-fail') && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
