@@ -6,6 +6,7 @@ import { CameraMode, NTFY_TOPIC } from '../main';
 import {
   analyseProductPhoto,
   hasReferenceImage,
+  hasCalibrationRegion,
   type ProductVisionResult,
 } from '../lib/productVision';
 import { postNtfyJson } from '../services/ntfy';
@@ -60,7 +61,8 @@ export function FinalQCScreen({
     productName === 'Product 2' ? 'product2' : 'product1';
 
   const referenceMissing =
-    cameraMode === 'webcam' && !hasReferenceImage(expectedProduct);
+    cameraMode === 'webcam' &&
+    (!hasReferenceImage(expectedProduct) || !hasCalibrationRegion(expectedProduct));
 
   // NIEUW: echte productcontrole — vergelijkt de automatisch genomen foto
   // met de referentiefoto die de operator zelf vastlegde in het
@@ -187,11 +189,11 @@ export function FinalQCScreen({
                 <div className="rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 p-8 text-center">
                   <CameraIcon className="w-10 h-10 mx-auto mb-3 text-amber-600" />
                   <p className="font-bold text-amber-800 mb-1">
-                    Nog geen referentiefoto ingesteld voor {productName}
+                    Nog geen kalibratie ingesteld voor {productName}
                   </p>
                   <p className="text-sm text-amber-700 mb-4">
-                    Leg eerst een referentiefoto vast in Instellingen &gt; Kalibratie voor deze
-                    controle automatisch kan werken.
+                    Leg eerst een afbakening en referentiefoto vast in Instellingen &gt; Kalibratie
+                    voor deze controle automatisch kan werken.
                   </p>
                   {onOpenCalibration && (
                     <button
