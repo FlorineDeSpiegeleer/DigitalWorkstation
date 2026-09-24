@@ -2919,6 +2919,20 @@ function OperatorApp({
         ? 'Product 2'
         : 'Product 1';
 
+    // NIEUW (bugfix): 'camera-check' en 'final-qc' zijn de twee stappen
+    // waar de telefoon-app op moet reageren (automatisch doorspringen
+    // naar de controlepagina). Bij de webcam-flow duurt zo'n stap vaak
+    // maar ~1,2 seconde — veel korter dan de minimuminterval hieronder.
+    // Zonder uitzondering werd de statusupdate voor die korte stap dan
+    // gewoon overschreven door de VOLGENDE stap vóór hij ooit verstuurd
+    // werd, waardoor de telefoon 'camera-check' nooit te zien kreeg en
+    // dus niet automatisch opende. Deze twee stappen versturen we daarom
+    // altijd onmiddellijk, zonder minimuminterval — de rest (snelle
+    // navigatie door de omstellingsschermen) blijft wel begrensd.
+    const isCriticalForPhone =
+      currentStep === 'camera-check' ||
+      currentStep === 'final-qc';
+
     void postNtfyJson(
       NTFY_STATUS_TOPIC,
       {
@@ -2935,10 +2949,9 @@ function OperatorApp({
           operatorSettings.station,
         timestamp: Date.now(),
       },
-      // Zelfde bescherming als bij de Waterspider-status: dedupliceren en
-      // een minimuminterval, zodat frequente stapwissels de ntfy.sh-
-      // snelheidslimiet niet raken.
-      { key: 'operator-status', dedupeMs: 4000, minIntervalMs: 4000 }
+      isCriticalForPhone
+        ? { key: 'operator-status' }
+        : { key: 'operator-status', dedupeMs: 4000, minIntervalMs: 4000 }
     );
   }, [
     currentStep,
